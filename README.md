@@ -1,17 +1,22 @@
 # ipfsd
 
+IPFS gateway backed by `renterd` storage.
+
 ## usage
 
-```
-curl -X POST -F "file=@example.txt" http://localhost:8080/upload
-CID: QmZULkCELmmk5XNfCgTnCyFgAVxBRBXyDHGGMVoLFLiXEN
+```sh
+# Upload Bored Ape 0 image
+curl -X POST -F "file=@ape0.png" http://localhost:8080/upload
+CID: QmRRPWG96cmgTn2qSzjwr2qvfNEuhunv6FNeMFGa9bx6mQ
+http://localhost:8080/ipfs/QmRRPWG96cmgTn2qSzjwr2qvfNEuhunv6FNeMFGa9bx6mQ
 
-curl http://localhost:8080/ipfs/QmZULkCELmmk5XNfCgTnCyFgAVxBRBXyDHGGMVoLFLiXEN
-hello
+# CID matches whats in the official Bored Ape contract
+# Image matches same CID fetched from ipfs.io
+https://ipfs.io/ipfs/QmRRPWG96cmgTn2qSzjwr2qvfNEuhunv6FNeMFGa9bx6mQ
 ```
+<image width="100px" src="https://ipfs.io/ipfs/QmRRPWG96cmgTn2qSzjwr2qvfNEuhunv6FNeMFGa9bx6mQ" />
 
 ## todo
-- [ ] save to configurable renterd instance
 - [ ] store concatenated IPFS blocks instead of raw file
 - [ ] add a database mapping IPFS block hashes to offsets
 - [ ] optionally push to an IPFS node for actual p2p sharing

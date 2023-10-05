@@ -5,6 +5,7 @@ go 1.20
 require (
 	github.com/ipfs/boxo v0.13.1
 	github.com/ipfs/kubo v0.23.0
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (

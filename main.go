@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,16 +16,34 @@ import (
 	"github.com/ipfs/boxo/files"
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/coreapi"
+	"gopkg.in/yaml.v2"
 )
 
-func uploadHandler(api iface.CoreAPI) http.HandlerFunc {
+type Config struct {
+	UploadPassword  string `yaml:"upload_password"`
+	RenterdURL      string `yaml:"renterd_url"`
+	RenterdPassword string `yaml:"renterd_password"`
+	RenterdBucket   string `yaml:"renterd_bucket"`
+}
+
+func readConfig() (*Config, error) {
+	cfg := Config{}
+	data, err := os.ReadFile("config.yml")
+	if err != nil {
+		return &cfg, err
+	}
+	err = yaml.Unmarshal(data, &cfg)
+	return &cfg, err
+}
+
+func uploadHandler(api iface.CoreAPI, cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
-		err := r.ParseMultipartForm(10 << 20) // Limit file size
+		err := r.ParseMultipartForm(2 << 30) // 2GB limit
 		if err != nil {
 			http.Error(w, "Couldn't parse multipart form", http.StatusBadRequest)
 			return
@@ -57,24 +77,51 @@ func uploadHandler(api iface.CoreAPI) http.HandlerFunc {
 			return
 		}
 
-		// TODO: save to configurable renterd instance
-		if err := saveFileToDisk(data, cidFile.Cid().String()); err != nil {
-			http.Error(w, "Failed to save file", http.StatusInternalServerError)
+		err = saveFileToRenterd(data, cidFile.Cid().String(), cfg)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		fmt.Fprintf(w, "CID: %s\n", cidFile.Cid())
+		fmt.Fprintf(w, "http://localhost:8080/ipfs/%s\n", cidFile.Cid())
 	}
 }
 
-func downloadHandler(w http.ResponseWriter, r *http.Request) {
-	cid := filepath.Base(r.URL.Path)
-	data, err := os.ReadFile(filepath.Join("filestore", cid))
-	if err != nil {
-		http.Error(w, "File not found", http.StatusNotFound)
-		return
+func downloadHandler(cfg *Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cid := filepath.Base(r.URL.Path)
+
+		req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/worker/objects/%s?bucket=%s", cfg.RenterdURL, cid, cfg.RenterdBucket), nil)
+		if err != nil {
+			http.Error(w, "Failed to create request", http.StatusInternalServerError)
+			return
+		}
+
+		authValue := "Basic " + base64.StdEncoding.EncodeToString([]byte(":"+cfg.RenterdPassword))
+		req.Header.Set("Authorization", authValue)
+		req.Header.Set("Range", r.Header.Get("Range"))
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			http.Error(w, "Failed to fetch data", http.StatusInternalServerError)
+			return
+		}
+		defer resp.Body.Close()
+
+		for key, values := range resp.Header {
+			for _, value := range values {
+				w.Header().Set(key, value)
+			}
+		}
+
+		if r.Header.Get("Range") != "" {
+			w.WriteHeader(http.StatusPartialContent)
+		}
+
+		io.Copy(w, resp.Body)
 	}
-	w.Write(data)
 }
 
 func ensureFileStoreExists() {
@@ -83,13 +130,49 @@ func ensureFileStoreExists() {
 	}
 }
 
-func saveFileToDisk(data []byte, cid string) error {
-	filePath := filepath.Join("filestore", cid)
-	return os.WriteFile(filePath, data, 0644)
+func saveFileToRenterd(data []byte, cid string, cfg *Config) error {
+	req, err := http.NewRequest("PUT", fmt.Sprintf("%s/api/worker/objects/%s?bucket=%s", cfg.RenterdURL, cid, cfg.RenterdBucket), bytes.NewBuffer(data))
+	if err != nil {
+		return err
+	}
+
+	authValue := "Basic " + base64.StdEncoding.EncodeToString([]byte(":"+cfg.RenterdPassword))
+	fmt.Println(authValue)
+	req.Header.Set("Authorization", authValue)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to save file to renterd: %s", resp.Status)
+	}
+	defer resp.Body.Close()
+
+	return nil
+}
+
+func basicAuth(handler http.HandlerFunc, password string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != "" || pass != password {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		handler(w, r)
+	}
 }
 
 func main() {
 	ctx := context.Background()
+	cfg, err := readConfig()
+	if err != nil {
+		fmt.Println("Failed to read config:", err)
+		return
+	}
+	fmt.Printf("renterd:\t%s\n", cfg.RenterdURL)
+	fmt.Printf("bucket:\t\t%s\n", cfg.RenterdBucket)
 	ensureFileStoreExists()
 	node, err := core.NewNode(ctx, &core.BuildCfg{
 		Online: false,
@@ -106,8 +189,8 @@ func main() {
 		return
 	}
 
-	http.HandleFunc("/upload", uploadHandler(api))
-	http.HandleFunc("/ipfs/", downloadHandler)
+	http.HandleFunc("/upload", basicAuth(uploadHandler(api, cfg), cfg.UploadPassword))
+	http.HandleFunc("/ipfs/", downloadHandler(cfg))
 
 	server := &http.Server{Addr: ":8080"}
 
