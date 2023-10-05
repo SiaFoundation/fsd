@@ -48,6 +48,8 @@ func uploadHandler(api iface.CoreAPI) http.HandlerFunc {
 			return
 		}
 
+		// TODO: optionally push to an IPFS node for actual p2p sharing
+
 		ctx := context.Background()
 		cidFile, err := api.Unixfs().Add(ctx, files.NewBytesFile(data), options.Unixfs.Pin(false))
 		if err != nil {
@@ -60,8 +62,6 @@ func uploadHandler(api iface.CoreAPI) http.HandlerFunc {
 			http.Error(w, "Failed to save file", http.StatusInternalServerError)
 			return
 		}
-
-		// TODO: optionally push to an IPFS node for actual p2p sharing
 
 		fmt.Fprintf(w, "CID: %s\n", cidFile.Cid())
 	}
