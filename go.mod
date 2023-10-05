@@ -1,6 +1,6 @@
 module github.com/siafoundation/ipfsd
 
-go 1.20
+go 1.21
 
 require (
 	github.com/ipfs/boxo v0.13.1

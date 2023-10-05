@@ -1,5 +1,5 @@
 # Use the official Go image
-FROM golang:1.20
+FROM golang:1.21 AS builder
 
 # Set the working directory inside the container
 WORKDIR /app
@@ -12,10 +12,14 @@ RUN go mod download
 COPY . .
 
 # Build the Go application
-RUN go build -o ipfsd .
+RUN go build -o bin/ ./cmd/ipfsd
+
+FROM scratch
+
+COPY --from=builder /app/bin/ipfsd /usr/local/bin/
 
 # Expose the port that the application listens on
 EXPOSE 8080
 
 # Run the application
-CMD ["./ipfsd"]
+CMD ["ipfsd"]
