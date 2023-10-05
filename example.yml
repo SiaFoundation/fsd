@@ -1,3 +1,4 @@
+domain: https://ipfs.io
 upload_password: securepasswordforuploading
 renterd_url: https://localhost:9980
 renterd_password: reallysecurepassword

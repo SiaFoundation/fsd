@@ -1,22 +1,21 @@
-# Use the official Go image to create a build artifact
-FROM golang:1.17 AS builder
+# Use the official Go image
+FROM golang:1.20
 
-# Move to working directory
+# Set the working directory inside the container
 WORKDIR /app
 
 # Copy Go modules and download dependencies
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source code and build
+# Copy source code into the container
 COPY . .
+
+# Build the Go application
 RUN go build -o ipfsd .
 
-# Use a minimal image for the final image
-FROM alpine:latest
-
-# Copy the build artifact into the image
-COPY --from=builder /app/ipfsd /ipfsd
+# Expose the port that the application listens on
+EXPOSE 8080
 
 # Run the application
-ENTRYPOINT ["/ipfsd"]
+CMD ["./ipfsd"]

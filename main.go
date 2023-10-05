@@ -20,6 +20,7 @@ import (
 )
 
 type Config struct {
+	Domain          string `yaml:"domain"`
 	UploadPassword  string `yaml:"upload_password"`
 	RenterdURL      string `yaml:"renterd_url"`
 	RenterdPassword string `yaml:"renterd_password"`
@@ -84,7 +85,7 @@ func uploadHandler(api iface.CoreAPI, cfg *Config) http.HandlerFunc {
 		}
 
 		fmt.Fprintf(w, "CID: %s\n", cidFile.Cid())
-		fmt.Fprintf(w, "http://localhost:8080/ipfs/%s\n", cidFile.Cid())
+		fmt.Fprintf(w, "%s/ipfs/%s\n", cfg.Domain, cidFile.Cid())
 	}
 }
 
@@ -105,7 +106,7 @@ func downloadHandler(cfg *Config) http.HandlerFunc {
 		client := &http.Client{}
 		resp, err := client.Do(req)
 		if err != nil {
-			http.Error(w, "Failed to fetch data", http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		defer resp.Body.Close()
@@ -121,12 +122,6 @@ func downloadHandler(cfg *Config) http.HandlerFunc {
 		}
 
 		io.Copy(w, resp.Body)
-	}
-}
-
-func ensureFileStoreExists() {
-	if _, err := os.Stat("filestore"); os.IsNotExist(err) {
-		os.Mkdir("filestore", 0755)
 	}
 }
 
@@ -173,7 +168,6 @@ func main() {
 	}
 	fmt.Printf("renterd:\t%s\n", cfg.RenterdURL)
 	fmt.Printf("bucket:\t\t%s\n", cfg.RenterdBucket)
-	ensureFileStoreExists()
 	node, err := core.NewNode(ctx, &core.BuildCfg{
 		Online: false,
 	})
