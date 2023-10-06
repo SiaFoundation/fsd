@@ -177,7 +177,6 @@ func saveFileToRenterd(data []byte, cid string, cfg *Config) error {
 	}
 
 	authValue := "Basic " + base64.StdEncoding.EncodeToString([]byte(":"+cfg.RenterdPassword))
-	fmt.Println(authValue)
 	req.Header.Set("Authorization", authValue)
 
 	client := &http.Client{}

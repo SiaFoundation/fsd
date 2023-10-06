@@ -20,3 +20,4 @@ https://ipfs.io/ipfs/QmRRPWG96cmgTn2qSzjwr2qvfNEuhunv6FNeMFGa9bx6mQ
 - [ ] store concatenated IPFS blocks instead of raw file
 - [ ] add a database mapping IPFS block hashes to offsets
 - [ ] optionally push to an IPFS node for actual p2p sharing
+- [ ] directory support, eg: ipfs://CID/images/cat.png, ipfs://QmeSjSinHpPnmXmspMjwiXyN6zS4E9zccariGR3jxcaWtq/0
