@@ -1,6 +1,7 @@
 package ipfs
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -15,7 +16,9 @@ import (
 	multihash "github.com/multiformats/go-multihash/core"
 )
 
-type CIDMap struct {
+var ErrNotFound = errors.New("not found")
+
+type Block struct {
 	CID    cid.Cid   `json:"cid"`
 	Key    string    `json:"key"`
 	Offset uint64    `json:"offset"`
@@ -23,7 +26,10 @@ type CIDMap struct {
 	Links  []cid.Cid `json:"links"`
 }
 
-func BuildBalancedCID(key string, r io.Reader) ([]CIDMap, error) {
+// BuildBalancedCID builds a balanced CID from the given reader It returns a
+// slice of Block which contains the CID, the renterd object key, the offset,
+// the length and the links of each block.
+func BuildBalancedCID(key string, r io.Reader) ([]Block, error) {
 	prefix, err := merkledag.PrefixForCidVersion(0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get prefix: %w", err)
@@ -41,9 +47,9 @@ func BuildBalancedCID(key string, r io.Reader) ([]CIDMap, error) {
 		return nil, fmt.Errorf("failed to create dag builder: %w", err)
 	}
 
-	var blocks []CIDMap
-
 	var offset uint64
+	blocks := make(map[string]Block)
+
 	var fillNode func(db *ihelpers.DagBuilderHelper, node *ihelpers.FSNodeOverDag, depth int) (ipld.Node, uint64, error)
 	fillNode = func(db *ihelpers.DagBuilderHelper, node *ihelpers.FSNodeOverDag, depth int) (ipld.Node, uint64, error) {
 		if node == nil {
@@ -60,31 +66,34 @@ func BuildBalancedCID(key string, r io.Reader) ([]CIDMap, error) {
 					return nil, 0, fmt.Errorf("failed to create new leaf node: %w", err)
 				}
 				cid := child.Cid()
-				blocks = append(blocks, CIDMap{
+				blocks[cid.String()] = Block{
 					CID:    cid,
 					Key:    key,
 					Offset: offset,
 					Length: childSize,
-				})
+				}
 				offset += childSize
 			} else {
 				child, childSize, err = fillNode(db, nil, depth-1)
 				if err != nil {
 					return nil, 0, fmt.Errorf("failed to fill node: %w", err)
 				}
-
+				cc := child.Cid()
 				var links []cid.Cid
 				for _, link := range child.Links() {
 					links = append(links, link.Cid)
 				}
-
-				blocks = append(blocks, CIDMap{
-					CID:    child.Cid(),
+				size, err := child.Size()
+				if err != nil {
+					return nil, 0, fmt.Errorf("failed to get size: %w", err)
+				}
+				blocks[cc.String()] = Block{
+					CID:    cc,
 					Key:    key,
 					Offset: offset,
-					Length: childSize,
+					Length: size,
 					Links:  links,
-				})
+				}
 			}
 
 			if err = node.AddChild(child, childSize, db); err != nil {
@@ -101,12 +110,13 @@ func BuildBalancedCID(key string, r io.Reader) ([]CIDMap, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new leaf node: %w", err)
 	}
-	blocks = append(blocks, CIDMap{
-		CID:    root.Cid(),
+	rc := root.Cid()
+	blocks[rc.String()] = Block{
+		CID:    rc,
 		Key:    key,
 		Offset: 0,
 		Length: size,
-	})
+	}
 	offset += size
 
 	for depth := 1; !db.Done(); depth++ {
@@ -119,36 +129,33 @@ func BuildBalancedCID(key string, r io.Reader) ([]CIDMap, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to fill node: %w", err)
 		}
-		var links []cid.Cid
-		for _, link := range root.Links() {
-			links = append(links, link.Cid)
-		}
-
-		blocks = append(blocks, CIDMap{
-			CID:    root.Cid(),
-			Key:    key,
-			Offset: offset,
-			Length: size,
-			Links:  links,
-		})
 	}
 
 	var links []cid.Cid
 	for _, link := range root.Links() {
 		links = append(links, link.Cid)
 	}
-	cid := root.Cid()
-	rootNode := CIDMap{
-		CID:    cid,
+	rc = root.Cid()
+	blocks[rc.String()] = Block{
+		CID:    rc,
 		Key:    key,
 		Offset: 0,
 		Length: size,
 		Links:  links,
 	}
-	blocks = append(blocks, rootNode)
 
-	sort.Slice(blocks, func(i, j int) bool {
-		return blocks[i].Offset < blocks[j].Offset
+	var blockSlice = make([]Block, 0, len(blocks))
+	for _, block := range blocks {
+		blockSlice = append(blockSlice, block)
+	}
+	sort.Slice(blockSlice, func(i, j int) bool {
+		if blockSlice[i].Offset < blockSlice[j].Offset {
+			return true
+		}
+		if blockSlice[i].Offset > blockSlice[j].Offset {
+			return false
+		}
+		return len(blockSlice[j].Links) < len(blockSlice[i].Links)
 	})
-	return blocks, nil
+	return blockSlice, nil
 }
