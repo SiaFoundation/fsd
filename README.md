@@ -1,4 +1,8 @@
+[![ipfsd](https://sia.tech/assets/banners/sia-banner-ipfsd.png)](http://sia.tech)
+
 # ipfsd
+
+[![GoDoc](https://godoc.org/go.sia.tech/ipfsd?status.svg)](https://godoc.org/go.sia.tech/ipfsd)
 
 IPFS gateway backed by `renterd` storage.
 
