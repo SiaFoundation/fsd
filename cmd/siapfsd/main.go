@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/ipfs/kubo/repo/fsrepo"
 	"go.sia.tech/jape"
 	"go.sia.tech/renterd/worker"
 	"go.sia.tech/siapfs/build"
@@ -111,7 +112,14 @@ func main() {
 	defer ds.Close()
 
 	client := worker.NewClient(cfg.Renterd.Address, cfg.Renterd.Password)
-	coreAPI, node, err := createNode(ctx, ipfsPath, ds, client, cfg.Renterd.Bucket)
+
+	r, err := fsrepo.Open(ipfsPath)
+	if err != nil {
+		log.Fatal("failed to open repo", zap.Error(err))
+	}
+	defer r.Close()
+
+	coreAPI, node, err := createNode(ctx, r, ds, client, cfg.Renterd.Bucket)
 	if err != nil {
 		log.Fatal("failed to start ipfs node", zap.Error(err))
 	}

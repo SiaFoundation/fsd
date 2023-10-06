@@ -13,6 +13,7 @@ import (
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/coreapi"
 	"github.com/ipfs/kubo/plugin/loader"
+	"github.com/ipfs/kubo/repo"
 	"github.com/ipfs/kubo/repo/fsrepo"
 	"go.sia.tech/renterd/worker"
 	"go.sia.tech/siapfs/ipfs/blockstore"
@@ -52,13 +53,7 @@ func initRepo(repoPath string) error {
 	return fsrepo.Init(repoPath, conf)
 }
 
-func createNode(ctx context.Context, repoPath string, db *badger.Store, renterd *worker.Client, bucket string) (iface.CoreAPI, *core.IpfsNode, error) {
-	r, err := fsrepo.Open(repoPath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to open repo: %w", err)
-	}
-	defer r.Close()
-
+func createNode(ctx context.Context, r repo.Repo, db *badger.Store, renterd *worker.Client, bucket string) (iface.CoreAPI, *core.IpfsNode, error) {
 	node, err := core.NewNode(ctx, &core.BuildCfg{
 		Online: true,
 		Repo:   r,
