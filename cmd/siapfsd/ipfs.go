@@ -8,6 +8,7 @@ import (
 
 	iface "github.com/ipfs/boxo/coreiface"
 	"github.com/ipfs/boxo/coreiface/options"
+	"github.com/ipfs/boxo/ipld/merkledag"
 	"github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/coreapi"
@@ -70,7 +71,11 @@ func createNode(ctx context.Context, repoPath string, db *badger.Store, renterd 
 		return nil, nil, fmt.Errorf("failed to create node: %w", err)
 	}
 
+	bs := blockstore.New(bucket, db, cfg.Renterd)
+	bserv := blockstore.NewBlockstoreService(bs)
 	node.Blockstore = blockstore.New(bucket, db, cfg.Renterd)
+	node.DAG = merkledag.NewDAGService(bserv)
+
 	coreAPI, err := coreapi.NewCoreAPI(node)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create coreapi: %w", err)
