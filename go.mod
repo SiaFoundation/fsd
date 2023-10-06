@@ -13,6 +13,7 @@ require (
 	go.sia.tech/jape v0.9.1-0.20230525021720-ecf031ecbffb
 	go.sia.tech/renterd v0.6.1-0.20231005151658-e450d5902e31
 	go.uber.org/zap v1.25.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
