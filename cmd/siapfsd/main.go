@@ -31,10 +31,10 @@ var (
 			Bucket:   "ipfs",
 		},
 		IPFS: config.IPFS{
-			GatewayAddress: "localhost:8080",
+			GatewayAddress: ":8080",
 		},
 		API: config.API{
-			Address: "localhost:8081",
+			Address: ":8081",
 		},
 	}
 )

@@ -12,14 +12,19 @@ RUN go mod download
 COPY . .
 
 # Build the Go application
-RUN go build -o bin/ ./cmd/ipfsd
+RUN go generate ./...
+RUN go build -o bin/ ./cmd/siapfsd
 
-FROM scratch
+FROM debian:stable-slim
 
-COPY --from=builder /app/bin/ipfsd /usr/local/bin/
+COPY --from=builder /app/bin/* /usr/bin/
 
-# Expose the port that the application listens on
-EXPOSE 8080
+# Expose the default gateway port
+EXPOSE 8080/tcp
+# Expose the default API port
+EXPOSE 8081/tcp
+
+VOLUME ["/data"]
 
 # Run the application
-CMD ["ipfsd"]
+CMD ["siapfsd", "-dir", "/data"]
