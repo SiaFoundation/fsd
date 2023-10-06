@@ -5,11 +5,11 @@ import (
 	"net/http"
 
 	"github.com/ipfs/go-cid"
+	"go.sia.tech/fsd/config"
+	"go.sia.tech/fsd/ipfs"
 	"go.sia.tech/jape"
 	"go.sia.tech/renterd/api"
 	"go.sia.tech/renterd/worker"
-	"go.sia.tech/siapfs/config"
-	"go.sia.tech/siapfs/ipfs"
 	"go.uber.org/zap"
 )
 

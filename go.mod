@@ -1,4 +1,4 @@
-module go.sia.tech/siapfs
+module go.sia.tech/fsd
 
 go 1.21
 

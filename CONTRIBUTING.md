@@ -1,6 +1,6 @@
-# Contributing to `siapfsd`
+# Contributing to `fsd`
 
-Thank you for considering contributing to `siapfsd`! We welcome your contributions
+Thank you for considering contributing to `fsd`! We welcome your contributions
 and appreciate your effort in helping improve the project. To ensure a smooth
 and efficient collaboration, we have outlined some best practices for
 contributing. Please follow these guidelines to maintain clarity and
@@ -10,7 +10,7 @@ For users new to GitHub, we recommend reading the [GitHub Flow](https://guides.g
 
 ## Fork the repository
 
-To get started, fork the `siapfsd` repository to your GitHub account. This will
+To get started, fork the `fsd` repository to your GitHub account. This will
 create a copy of the repository under your own account, allowing you to freely
 make changes without affecting the original project.
 
@@ -46,7 +46,7 @@ concisely describes the purpose of the change.
 Before submitting a pull request, run the linter and tests to ensure that your
 changes do not break any existing functionality. If you are adding new
 functionality, include tests to verify that the new code works as expected.
-`siapfsd` uses [golangci-lint](https://golangci-lint.run/usage/install/) to lint.
+`fsd` uses [golangci-lint](https://golangci-lint.run/usage/install/) to lint.
 
 ### Run tests
 

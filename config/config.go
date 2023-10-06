@@ -19,7 +19,7 @@ type (
 		Password string `yaml:"password"`
 	}
 
-	// Config contains the configuration for siapfsd
+	// Config contains the configuration for fsd
 	Config struct {
 		Renterd Renterd `yaml:"renterd"`
 		IPFS    IPFS    `yaml:"ipfs"`

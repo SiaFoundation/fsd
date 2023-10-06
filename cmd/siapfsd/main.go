@@ -12,12 +12,12 @@ import (
 	"syscall"
 
 	"github.com/ipfs/kubo/repo/fsrepo"
+	"go.sia.tech/fsd/build"
+	"go.sia.tech/fsd/config"
+	shttp "go.sia.tech/fsd/http"
+	"go.sia.tech/fsd/persist/badger"
 	"go.sia.tech/jape"
 	"go.sia.tech/renterd/worker"
-	"go.sia.tech/siapfs/build"
-	"go.sia.tech/siapfs/config"
-	shttp "go.sia.tech/siapfs/http"
-	"go.sia.tech/siapfs/persist/badger"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/yaml.v3"
@@ -42,7 +42,7 @@ var (
 
 // mustLoadConfig loads the config file.
 func mustLoadConfig(dir string, log *zap.Logger) {
-	configPath := filepath.Join(dir, "siapfsd.yml")
+	configPath := filepath.Join(dir, "fsd.yml")
 
 	// If the config file doesn't exist, don't try to load it.
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
@@ -105,7 +105,7 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 
-	ds, err := badger.OpenDatabase(filepath.Join(dir, "siapfsd.badgerdb"), log.Named("badger"))
+	ds, err := badger.OpenDatabase(filepath.Join(dir, "fsd.badgerdb"), log.Named("badger"))
 	if err != nil {
 		log.Fatal("failed to open badger database", zap.Error(err))
 	}
@@ -159,7 +159,7 @@ func main() {
 		}
 	}()
 
-	log.Info("siapfsd started",
+	log.Info("fsd started",
 		zap.String("apiAddress", apiListener.Addr().String()),
 		zap.String("gatewayAddress", gatewayListener.Addr().String()),
 		zap.String("version", build.Version()),

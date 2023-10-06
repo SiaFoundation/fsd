@@ -75,8 +75,8 @@ jobs:
           GOARCH: amd64
         run: |
           mkdir -p release
-          ZIP_OUTPUT=release/siapfsd_${GOOS}_${GOARCH}.zip
-          go build -tags='netgo' -trimpath -o bin/ -a -ldflags '-s -w -linkmode external -extldflags "-static"' ./cmd/siapfsd
+          ZIP_OUTPUT=release/fsd_${GOOS}_${GOARCH}.zip
+          go build -tags='netgo' -trimpath -o bin/ -a -ldflags '-s -w -linkmode external -extldflags "-static"' ./cmd/fsd
           cp README.md LICENSE bin/
           zip -qj $ZIP_OUTPUT bin/*
       - name: Build arm64
@@ -87,13 +87,13 @@ jobs:
           CC: aarch64-linux-gnu-gcc
         run: |
           mkdir -p release
-          ZIP_OUTPUT=release/siapfsd_${GOOS}_${GOARCH}.zip
-          go build -tags='netgo' -trimpath -o bin/ -a -ldflags '-s -w' ./cmd/siapfsd
+          ZIP_OUTPUT=release/fsd_${GOOS}_${GOARCH}.zip
+          go build -tags='netgo' -trimpath -o bin/ -a -ldflags '-s -w' ./cmd/fsd
           cp README.md LICENSE bin/
           zip -qj $ZIP_OUTPUT bin/*
       - uses: actions/upload-artifact@v3
         with:
-          name: siapfsd
+          name: fsd
           path: release/
   build-mac: 
     runs-on: macos-latest
@@ -149,11 +149,11 @@ jobs:
           GOOS: darwin
           GOARCH: amd64
         run: |
-          ZIP_OUTPUT=release/siapfsd_${GOOS}_${GOARCH}.zip
+          ZIP_OUTPUT=release/fsd_${GOOS}_${GOARCH}.zip
           mkdir -p release
-          go build -tags='netgo' -trimpath -o bin/ -a -ldflags '-s -w' ./cmd/siapfsd
+          go build -tags='netgo' -trimpath -o bin/ -a -ldflags '-s -w' ./cmd/fsd
           cp README.md LICENSE bin/
-          /usr/bin/codesign --deep -f -v --timestamp -o runtime,library -s $APPLE_CERT_ID bin/siapfsd
+          /usr/bin/codesign --deep -f -v --timestamp -o runtime,library -s $APPLE_CERT_ID bin/fsd
           ditto -ck bin $ZIP_OUTPUT
           xcrun notarytool submit -k ~/private_keys/AuthKey_$APPLE_API_KEY.p8 -d $APPLE_API_KEY -i $APPLE_API_ISSUER --wait --timeout 10m $ZIP_OUTPUT
       - name: Build arm64
@@ -169,16 +169,16 @@ jobs:
           GOOS: darwin
           GOARCH: arm64
         run: |
-          ZIP_OUTPUT=release/siapfsd_${GOOS}_${GOARCH}.zip
+          ZIP_OUTPUT=release/fsd_${GOOS}_${GOARCH}.zip
           mkdir -p release
-          go build -tags='netgo' -trimpath -o bin/ -a -ldflags '-s -w' ./cmd/siapfsd
+          go build -tags='netgo' -trimpath -o bin/ -a -ldflags '-s -w' ./cmd/fsd
           cp README.md LICENSE bin/
-          /usr/bin/codesign --deep -f -v --timestamp -o runtime,library -s $APPLE_CERT_ID bin/siapfsd
+          /usr/bin/codesign --deep -f -v --timestamp -o runtime,library -s $APPLE_CERT_ID bin/fsd
           ditto -ck bin $ZIP_OUTPUT
           xcrun notarytool submit -k ~/private_keys/AuthKey_$APPLE_API_KEY.p8 -d $APPLE_API_KEY -i $APPLE_API_ISSUER --wait --timeout 10m $ZIP_OUTPUT
       - uses: actions/upload-artifact@v3
         with:
-          name: siapfsd
+          name: fsd
           path: release/
   build-windows: 
     runs-on: windows-latest
@@ -201,12 +201,12 @@ jobs:
         shell: bash
         run: |
           mkdir -p release
-          ZIP_OUTPUT=release/siapfsd_${GOOS}_${GOARCH}.zip
-          go build -tags='netgo' -trimpath -o bin/ -a -ldflags '-s -w -linkmode external -extldflags "-static"' ./cmd/siapfsd
-          azuresigntool sign -kvu "${{ secrets.AZURE_KEY_VAULT_URI }}" -kvi "${{ secrets.AZURE_CLIENT_ID }}" -kvt "${{ secrets.AZURE_TENANT_ID }}" -kvs "${{ secrets.AZURE_CLIENT_SECRET }}" -kvc ${{ secrets.AZURE_CERT_NAME }} -tr http://timestamp.digicert.com -v bin/siapfsd.exe
+          ZIP_OUTPUT=release/fsd_${GOOS}_${GOARCH}.zip
+          go build -tags='netgo' -trimpath -o bin/ -a -ldflags '-s -w -linkmode external -extldflags "-static"' ./cmd/fsd
+          azuresigntool sign -kvu "${{ secrets.AZURE_KEY_VAULT_URI }}" -kvi "${{ secrets.AZURE_CLIENT_ID }}" -kvt "${{ secrets.AZURE_TENANT_ID }}" -kvs "${{ secrets.AZURE_CLIENT_SECRET }}" -kvc ${{ secrets.AZURE_CERT_NAME }} -tr http://timestamp.digicert.com -v bin/fsd.exe
           cp README.md LICENSE bin/
           7z a $ZIP_OUTPUT ./bin/*
       - uses: actions/upload-artifact@v3
         with:
-          name: siapfsd
+          name: fsd
           path: release/

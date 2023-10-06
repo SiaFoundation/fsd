@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"go.sia.tech/siapfs/config"
+	"go.sia.tech/fsd/config"
 )
 
 // downloadObject downloads an object from renterd

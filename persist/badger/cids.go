@@ -6,7 +6,7 @@ import (
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/ipfs/go-cid"
-	"go.sia.tech/siapfs/ipfs"
+	"go.sia.tech/fsd/ipfs"
 )
 
 // HasBlock returns true if the CID is in the store

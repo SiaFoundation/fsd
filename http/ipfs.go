@@ -10,9 +10,9 @@ import (
 	"github.com/ipfs/boxo/coreiface/path"
 	"github.com/ipfs/boxo/files"
 	"github.com/ipfs/go-cid"
+	"go.sia.tech/fsd/config"
+	"go.sia.tech/fsd/ipfs"
 	"go.sia.tech/jape"
-	"go.sia.tech/siapfs/config"
-	"go.sia.tech/siapfs/ipfs"
 	"go.uber.org/zap"
 )
 

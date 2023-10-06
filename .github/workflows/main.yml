@@ -27,4 +27,4 @@ jobs:
       - name: Build
         env:
           CGO_ENABLED: 1
-        run: go build -o bin/ ./cmd/siapfsd
+        run: go build -o bin/ ./cmd/fsd

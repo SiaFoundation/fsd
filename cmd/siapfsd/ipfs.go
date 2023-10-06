@@ -15,9 +15,9 @@ import (
 	"github.com/ipfs/kubo/plugin/loader"
 	"github.com/ipfs/kubo/repo"
 	"github.com/ipfs/kubo/repo/fsrepo"
+	"go.sia.tech/fsd/ipfs/blockstore"
+	"go.sia.tech/fsd/persist/badger"
 	"go.sia.tech/renterd/worker"
-	"go.sia.tech/siapfs/ipfs/blockstore"
-	"go.sia.tech/siapfs/persist/badger"
 )
 
 func setupPlugins(externalPluginsPath string) error {

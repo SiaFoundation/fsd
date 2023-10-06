@@ -1,5 +1,5 @@
 name: Test
-description: Lints and tests siapfsd
+description: Lints and tests fsd
 
 runs:
   using: composite

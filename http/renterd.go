@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"go.sia.tech/siapfs/config"
+	"go.sia.tech/fsd/config"
 )
 
 func downloadObject(ctx context.Context, renterd config.Renterd, key string, offset, length uint64) (io.ReadCloser, error) {

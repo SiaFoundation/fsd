@@ -10,8 +10,8 @@ import (
 	"github.com/ipfs/boxo/blockstore"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
-	"go.sia.tech/siapfs/config"
-	"go.sia.tech/siapfs/persist/badger"
+	"go.sia.tech/fsd/config"
+	"go.sia.tech/fsd/persist/badger"
 )
 
 // A Store implements the IPFS blockstore interface
