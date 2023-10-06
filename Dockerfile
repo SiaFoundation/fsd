@@ -13,9 +13,9 @@ COPY . .
 
 # Build the Go application
 RUN go generate ./...
-RUN go build -o bin/ ./cmd/siapfsd
+RUN go build -o bin/ -tags='netgo timetzdata' -trimpath -a -ldflags '-s -w -linkmode external -extldflags "-static"' ./cmd/siapfsd
 
-FROM debian:stable-slim
+FROM scratch
 
 COPY --from=builder /app/bin/* /usr/bin/
 
