@@ -7,10 +7,12 @@ import (
 	cid "github.com/ipfs/go-cid"
 )
 
+// An Exchange implements the IPFS exchange interface
 type Exchange struct {
 	bserv *BlockService
 }
 
+// Close closes the exchange.
 func (e *Exchange) Close() error {
 	return nil
 }

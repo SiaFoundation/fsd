@@ -10,10 +10,12 @@ import (
 	cid "github.com/ipfs/go-cid"
 )
 
+// A BlockService implements the IPFS blockservice interface
 type BlockService struct {
 	store blockstore.Blockstore
 }
 
+// Close closes the blockservice.
 func (bs *BlockService) Close() error {
 	return nil
 }
