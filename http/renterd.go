@@ -1,4 +1,4 @@
-package api
+package http
 
 import (
 	"context"
@@ -7,18 +7,20 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+
+	"go.sia.tech/siapfs/config"
 )
 
-func downloadObject(ctx context.Context, address, password, bucket, key string, offset, length uint64) (io.ReadCloser, error) {
+func downloadObject(ctx context.Context, renterd config.Renterd, key string, offset, length uint64) (io.ReadCloser, error) {
 	values := url.Values{}
-	values.Set("bucket", url.QueryEscape(bucket))
-	url := fmt.Sprintf("%s/objects/%s?%s", address, key, values.Encode())
+	values.Set("bucket", url.QueryEscape(renterd.Bucket))
+	url := fmt.Sprintf("%s/objects/%s?%s", renterd.Address, key, values.Encode())
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.SetBasicAuth("", password)
+	req.SetBasicAuth("", renterd.Password)
 	req.Header.Add("Range", fmt.Sprintf("bytes=%d-%d", offset, offset+length))
 
 	resp, err := http.DefaultClient.Do(req)
