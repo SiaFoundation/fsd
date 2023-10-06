@@ -5,28 +5,35 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/ipfs/boxo/blockstore"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
-	"go.sia.tech/renterd/api"
-	"go.sia.tech/renterd/worker"
+	"go.sia.tech/siapfs/config"
 	"go.sia.tech/siapfs/persist/badger"
 )
 
+// A Store implements the IPFS blockstore interface
 type Store struct {
 	bucket string
 
-	db     *badger.Store
-	client *worker.Client
+	db      *badger.Store
+	renterd config.Renterd
 }
 
+// DeleteBlock removes a given block from the blockstore.
+// note: this is not implemented
 func (s *Store) DeleteBlock(context.Context, cid.Cid) error {
 	return errors.New("cannot put blocks")
 }
+
+// Has returns whether or not a given block is in the blockstore.
 func (s *Store) Has(ctx context.Context, c cid.Cid) (bool, error) {
 	return s.db.HasBlock(c)
 }
+
+// Get returns a block by CID
 func (s *Store) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
 	cm, err := s.db.GetBlock(c)
 	if err != nil {
@@ -34,9 +41,16 @@ func (s *Store) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
 	}
 
 	var buf bytes.Buffer
-	err = s.client.DownloadObject(ctx, &buf, cm.Key, api.DownloadWithRange(int64(cm.Offset), int64(cm.Offset+cm.Length)), api.DownloadWithBucket(s.bucket))
+	r, err := downloadObject(ctx, s.renterd, cm.Key, cm.Offset, cm.Length)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download object: %w", err)
+	}
+	defer r.Close()
+
+	if n, err := io.Copy(&buf, r); err != nil {
+		return nil, fmt.Errorf("failed to copy object: %w", err)
+	} else if n != int64(cm.Length) {
+		return nil, fmt.Errorf("failed to copy object: expected %d bytes, got %d", cm.Length, n)
 	}
 
 	return blocks.NewBlockWithCid(buf.Bytes(), c)
@@ -82,12 +96,13 @@ func (s *Store) HashOnRead(enabled bool) {
 	// TODO: implement
 }
 
+// unlocker is a stub implementation of blockstore.Unlocker
 type unlocker struct{}
 
 func (u unlocker) Unlock(context.Context) {}
 
 // GCLock locks the blockstore for garbage collection. No operations
-// that expect to finish with a pin should ocurr simultaneously.
+// that expect to finish with a pin should occur simultaneously.
 // Reading during GC is safe, and requires no lock.
 func (s *Store) GCLock(context.Context) blockstore.Unlocker {
 	return unlocker{}
@@ -95,22 +110,23 @@ func (s *Store) GCLock(context.Context) blockstore.Unlocker {
 
 // PinLock locks the blockstore for sequences of puts expected to finish
 // with a pin (before GC). Multiple put->pin sequences can write through
-// at the same time, but no GC should happen simulatenously.
+// at the same time, but no GC should happen simultaneously.
 // Reading during Pinning is safe, and requires no lock.
 func (s *Store) PinLock(context.Context) blockstore.Unlocker {
 	return unlocker{}
 }
 
-// GcRequested returns true if GCLock has been called and is waiting to
+// GCRequested returns true if GCLock has been called and is waiting to
 // take the lock
 func (s *Store) GCRequested(context.Context) bool {
 	return false
 }
 
-func New(bucket string, db *badger.Store, client *worker.Client) *Store {
+// New creates a new blockstore backed by the given badger.Store and renterd client
+func New(bucket string, db *badger.Store, renterd config.Renterd) *Store {
 	return &Store{
-		bucket: bucket,
-		db:     db,
-		client: client,
+		bucket:  bucket,
+		db:      db,
+		renterd: renterd,
 	}
 }

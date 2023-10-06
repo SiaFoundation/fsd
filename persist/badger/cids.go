@@ -9,6 +9,7 @@ import (
 	"go.sia.tech/siapfs/ipfs"
 )
 
+// HasBlock returns true if the CID is in the store
 func (s *Store) HasBlock(cid cid.Cid) (ok bool, err error) {
 	err = s.db.View(func(txn *badger.Txn) error {
 		_, err := txn.Get([]byte(cid.Bytes()))
@@ -24,6 +25,7 @@ func (s *Store) HasBlock(cid cid.Cid) (ok bool, err error) {
 	return
 }
 
+// GetBlock returns the block metadata for a given CID
 func (s *Store) GetBlock(cid cid.Cid) (cm ipfs.Block, err error) {
 	err = s.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(cid.Bytes()))
@@ -40,6 +42,7 @@ func (s *Store) GetBlock(cid cid.Cid) (cm ipfs.Block, err error) {
 	return
 }
 
+// AddBlocks adds blocks to the store
 func (s *Store) AddBlocks(blocks []ipfs.Block) error {
 	return s.db.Update(func(txn *badger.Txn) error {
 		for _, block := range blocks {
@@ -54,6 +57,7 @@ func (s *Store) AddBlocks(blocks []ipfs.Block) error {
 	})
 }
 
+// AllKeysChan returns a channel of all CIDs in the store
 func (s *Store) AllKeysChan(ctx context.Context) (<-chan cid.Cid, error) {
 	ch := make(chan cid.Cid)
 
