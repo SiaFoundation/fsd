@@ -5,12 +5,12 @@ package build
 
 import "time"
 
-// Commit returns the commit hash of hostd
+// Commit returns the commit hash of siapfsd
 func Commit() string {
 	return commit
 }
 
-// Version returns the version of hostd
+// Version returns the version of siapfsd
 func Version() string {
 	return version
 }

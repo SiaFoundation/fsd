@@ -39,8 +39,7 @@ var (
 	}
 )
 
-// mustLoadConfig loads the config file specified by the HOSTD_CONFIG_PATH. If
-// the config file does not exist, it will not be loaded.
+// mustLoadConfig loads the config file.
 func mustLoadConfig(dir string, log *zap.Logger) {
 	configPath := filepath.Join(dir, "siapfsd.yml")
 

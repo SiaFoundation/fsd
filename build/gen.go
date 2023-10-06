@@ -1,6 +1,6 @@
 //go:build ignore
 
-// This script generates meta.go which contains version info for the hostd binary. It can be run with `go generate`.
+// This script generates meta.go which contains version info for the siapfsd binary. It can be run with `go generate`.
 package main
 
 import (
