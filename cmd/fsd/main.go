@@ -143,7 +143,7 @@ func main() {
 	defer apiServer.Close()
 
 	gatewayServer := &http.Server{
-		Handler: jape.BasicAuth(cfg.API.Password)(shttp.NewIPFSHandler(cfg.Renterd, coreAPI, ds, log.Named("gateway"))),
+		Handler: shttp.NewIPFSHandler(cfg.Renterd, coreAPI, ds, log.Named("gateway")),
 	}
 	defer gatewayServer.Close()
 
