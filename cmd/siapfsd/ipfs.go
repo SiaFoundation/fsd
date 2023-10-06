@@ -70,7 +70,7 @@ func createNode(ctx context.Context, repoPath string, db *badger.Store, renterd 
 		return nil, nil, fmt.Errorf("failed to create node: %w", err)
 	}
 
-	node.Blockstore = blockstore.New(bucket, db, renterd)
+	node.Blockstore = blockstore.New(bucket, db, cfg.Renterd)
 	coreAPI, err := coreapi.NewCoreAPI(node)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create coreapi: %w", err)

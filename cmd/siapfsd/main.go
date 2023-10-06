@@ -11,22 +11,57 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"go.sia.tech/jape"
 	"go.sia.tech/renterd/worker"
-	"go.sia.tech/siapfs/api"
+	"go.sia.tech/siapfs/build"
+	"go.sia.tech/siapfs/config"
+	shttp "go.sia.tech/siapfs/http"
 	"go.sia.tech/siapfs/persist/badger"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"gopkg.in/yaml.v3"
 )
 
 var (
-	dir               = "."
-	bucket            = "ipfs"
-	workerCredentials = api.RenterdCredentials{
-		Address:  "http://localhost:9980/api/worker",
-		Password: "password",
+	dir = "."
+	cfg = config.Config{
+		Renterd: config.Renterd{
+			Address:  "http://localhost:9980/api/worker",
+			Password: "password",
+			Bucket:   "ipfs",
+		},
+		IPFS: config.IPFS{
+			GatewayAddress: "localhost:8080",
+		},
+		API: config.API{
+			Address: "localhost:8081",
+		},
 	}
-	apiAddr = "localhost:8001"
 )
+
+// mustLoadConfig loads the config file specified by the HOSTD_CONFIG_PATH. If
+// the config file does not exist, it will not be loaded.
+func mustLoadConfig(dir string, log *zap.Logger) {
+	configPath := filepath.Join(dir, "siapfsd.yml")
+
+	// If the config file doesn't exist, don't try to load it.
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		return
+	}
+
+	f, err := os.Open(configPath)
+	if err != nil {
+		log.Fatal("failed to open config file", zap.Error(err))
+	}
+	defer f.Close()
+
+	dec := yaml.NewDecoder(f)
+	dec.KnownFields(true)
+
+	if err := dec.Decode(&cfg); err != nil {
+		log.Fatal("failed to decode config file", zap.Error(err))
+	}
+}
 
 func main() {
 	// configure console logging note: this is configured before anything else
@@ -49,10 +84,9 @@ func main() {
 	zap.RedirectStdLog(log.Named("stdlib"))
 
 	flag.StringVar(&dir, "dir", dir, "directory to use for data")
-	flag.StringVar(&bucket, "renterd.bucket", bucket, "bucket to use for renterd")
-	flag.StringVar(&workerCredentials.Address, "renterd.addr", workerCredentials.Address, "worker address to use for renterd")
-	flag.StringVar(&workerCredentials.Password, "renterd.pass", workerCredentials.Password, "worker password to use for renterd")
 	flag.Parse()
+
+	mustLoadConfig(dir, log)
 
 	ipfsPath := filepath.Join(dir, "ipfs")
 
@@ -77,30 +111,53 @@ func main() {
 	}
 	defer ds.Close()
 
-	client := worker.NewClient(workerCredentials.Address, workerCredentials.Password)
-	coreAPI, node, err := createNode(ctx, ipfsPath, ds, client, bucket)
+	client := worker.NewClient(cfg.Renterd.Address, cfg.Renterd.Password)
+	coreAPI, node, err := createNode(ctx, ipfsPath, ds, client, cfg.Renterd.Bucket)
 	if err != nil {
 		log.Fatal("failed to start ipfs node", zap.Error(err))
 	}
 	defer node.Close()
 
-	l, err := net.Listen("tcp", apiAddr)
+	apiListener, err := net.Listen("tcp", cfg.API.Address)
 	if err != nil {
 		log.Fatal("failed to listen", zap.Error(err))
 	}
-	defer l.Close()
+	defer apiListener.Close()
 
-	server := &http.Server{
-		Handler: api.NewServer(bucket, workerCredentials, coreAPI, ds, log.Named("api")),
+	gatewayListener, err := net.Listen("tcp", cfg.IPFS.GatewayAddress)
+	if err != nil {
+		log.Fatal("failed to listen", zap.Error(err))
 	}
-	defer server.Close()
-	log.Info("listening", zap.String("addr", l.Addr().String()))
+	defer gatewayListener.Close()
+
+	apiServer := &http.Server{
+		Handler: jape.BasicAuth(cfg.API.Password)(shttp.NewAPIHandler(cfg.Renterd, ds, log.Named("api"))),
+	}
+	defer apiServer.Close()
+
+	gatewayServer := &http.Server{
+		Handler: jape.BasicAuth(cfg.API.Password)(shttp.NewIPFSHandler(cfg.Renterd, coreAPI, ds, log.Named("gateway"))),
+	}
+	defer gatewayServer.Close()
 
 	go func() {
-		if err := server.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatal("failed to serve", zap.Error(err))
+		if err := apiServer.Serve(apiListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatal("failed to serve api", zap.Error(err))
 		}
 	}()
+
+	go func() {
+		if err := gatewayServer.Serve(gatewayListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatal("failed to serve gateway", zap.Error(err))
+		}
+	}()
+
+	log.Info("siapfsd started",
+		zap.String("apiAddress", apiListener.Addr().String()),
+		zap.String("gatewayAddress", gatewayListener.Addr().String()),
+		zap.String("version", build.Version()),
+		zap.String("revision", build.Commit()),
+		zap.Time("buildTime", build.Time()))
 
 	<-ctx.Done()
 }
