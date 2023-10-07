@@ -2,8 +2,9 @@ package ipfs_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
-	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -152,7 +153,7 @@ func TestTest(t *testing.T) {
 	}
 	defer node.Close()
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(time.Second)
 
 	t.Log(node.PeerID())
 	t.Log(node.Peers())
@@ -162,20 +163,19 @@ func TestTest(t *testing.T) {
 	downloadCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
-	// note: this currently only downloads the root CID. Need to walk the DAG
 	r, err := node.DownloadCID(downloadCtx, c)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer r.Close()
 
-	f, err := os.Open("test.png")
-	if err != nil {
+	h := sha256.New()
+	if _, err := io.Copy(h, r); err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
 
-	if _, err := io.Copy(f, r); err != nil {
-		t.Fatal(err)
+	shaChecksum := hex.EncodeToString(h.Sum(nil))
+	if shaChecksum != "f0fe7b43114786cf72649551290761a01b27cd85d9f1a97da7f58c2b505d4cf3" {
+		t.Fatalf("unexpected hash: %x", h.Sum(nil))
 	}
 }

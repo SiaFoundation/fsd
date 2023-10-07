@@ -60,7 +60,7 @@ func (n *Node) DownloadCID(ctx context.Context, c cid.Cid) (io.ReadSeekCloser, e
 		return nil, fmt.Errorf("failed to get root node: %w", err)
 	}
 
-	dr, err := fsio.NewDagReader(ctx, rootNode, n.dagService)
+	dr, err := fsio.NewDagReader(ctx, rootNode, dagSess)
 	return dr, err
 }
 
