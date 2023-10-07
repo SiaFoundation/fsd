@@ -92,14 +92,14 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 
-	ds, err := badger.OpenDatabase(filepath.Join(dir, "fsd.badgerdb"), log.Named("badger"))
+	db, err := badger.OpenDatabase(filepath.Join(dir, "fsd.badgerdb"), log.Named("badger"))
 	if err != nil {
 		log.Fatal("failed to open badger database", zap.Error(err))
 	}
-	defer ds.Close()
+	defer db.Close()
 
 	privateKey, _, _ := crypto.GenerateEd25519Key(frand.Reader)
-	store := ipfs.NewRenterdBlockStore(ds, cfg.Renterd)
+	store := ipfs.NewRenterdBlockStore(db, cfg.Renterd, log.Named("blockstore"))
 
 	node, err := ipfs.NewNode(ctx, privateKey, cfg.IPFS, store)
 	if err != nil {
@@ -120,12 +120,12 @@ func main() {
 	defer gatewayListener.Close()
 
 	apiServer := &http.Server{
-		Handler: jape.BasicAuth(cfg.API.Password)(shttp.NewAPIHandler(cfg.Renterd, ds, log.Named("api"))),
+		Handler: jape.BasicAuth(cfg.API.Password)(shttp.NewAPIHandler(node, db, cfg, log.Named("api"))),
 	}
 	defer apiServer.Close()
 
 	gatewayServer := &http.Server{
-		Handler: shttp.NewIPFSHandler(cfg.Renterd, ds, log.Named("gateway")),
+		Handler: shttp.NewIPFSHandler(node, db, cfg, log.Named("gateway")),
 	}
 	defer gatewayServer.Close()
 

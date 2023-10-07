@@ -3,7 +3,6 @@ package ipfs
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 
@@ -36,7 +35,7 @@ type (
 // DeleteBlock removes a given block from the blockstore.
 // note: this is not implemented
 func (bs *RenterdBlockStore) DeleteBlock(context.Context, cid.Cid) error {
-	return errors.New("cannot put blocks")
+	return nil
 }
 
 // Has returns whether or not a given block is in the blockstore.
@@ -78,13 +77,13 @@ func (bs *RenterdBlockStore) GetSize(ctx context.Context, c cid.Cid) (int, error
 
 // Put puts a given block to the underlying datastore
 func (bs *RenterdBlockStore) Put(context.Context, blocks.Block) error {
-	return errors.New("cannot put blocks")
+	return nil
 }
 
 // PutMany puts a slice of blocks at the same time using batching
 // capabilities of the underlying datastore whenever possible.
 func (bs *RenterdBlockStore) PutMany(context.Context, []blocks.Block) error {
-	return errors.New("cannot put blocks")
+	return nil
 }
 
 // AllKeysChan returns a channel from which
@@ -112,9 +111,10 @@ func (bs *RenterdBlockStore) HashOnRead(enabled bool) {
 
 // NewRenterdBlockStore creates a new blockstore backed by the given
 // badger.Store and a renterd node
-func NewRenterdBlockStore(store Store, renterd config.Renterd) *RenterdBlockStore {
+func NewRenterdBlockStore(store Store, renterd config.Renterd, log *zap.Logger) *RenterdBlockStore {
 	return &RenterdBlockStore{
 		store:   store,
 		renterd: renterd,
+		log:     log,
 	}
 }

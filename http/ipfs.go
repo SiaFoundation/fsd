@@ -5,16 +5,20 @@ import (
 	"net/http"
 
 	"github.com/ipfs/go-cid"
+	format "github.com/ipfs/go-ipld-format"
 	"go.sia.tech/fsd/config"
+	"go.sia.tech/fsd/ipfs"
 	"go.sia.tech/jape"
 	"go.uber.org/zap"
 )
 
 type ipfsServer struct {
-	renterd config.Renterd
-
 	store Store
+	node  *ipfs.Node
 	log   *zap.Logger
+
+	ipfs    config.IPFS
+	renterd config.Renterd
 }
 
 func (is *ipfsServer) handleIPFS(jc jape.Context) {
@@ -32,14 +36,24 @@ func (is *ipfsServer) handleIPFS(jc jape.Context) {
 	}
 
 	block, err := is.store.GetBlock(ctx, cid)
-	if err != nil {
+	if format.IsNotFound(err) && is.ipfs.FetchRemote {
+		is.log.Info("downloading from ipfs", zap.String("cid", cid.Hash().B58String()))
+		r, err := is.node.DownloadCID(ctx, cid)
+		if err != nil {
+			jc.Error(err, http.StatusInternalServerError)
+			is.log.Error("failed to download cid", zap.Error(err))
+			return
+		}
+		defer r.Close()
+
+		io.Copy(jc.ResponseWriter, r)
+	} else if err != nil {
 		jc.Error(err, http.StatusInternalServerError)
 		is.log.Error("failed to get block", zap.Error(err))
 		return
 	}
 
-	is.log.Info("downloading block from renterd", zap.String("cid", cid.Hash().B58String()), zap.String("key", block.Key), zap.Uint64("offset", block.Offset), zap.Uint64("length", block.Length))
-	// note: download object from bucket is broken
+	is.log.Info("downloading from renterd", zap.String("cid", cid.Hash().B58String()), zap.String("key", block.Key), zap.Uint64("offset", block.Offset), zap.Uint64("length", block.Length))
 	reader, err := downloadObject(ctx, is.renterd, block.Key, block.Offset, block.Length)
 	if err != nil {
 		jc.Error(err, http.StatusInternalServerError)
@@ -56,11 +70,14 @@ func (is *ipfsServer) handleIPFS(jc jape.Context) {
 }
 
 // NewIPFSHandler creates a new http.Handler for the IPFS gateway.
-func NewIPFSHandler(renterd config.Renterd, ds Store, log *zap.Logger) http.Handler {
+func NewIPFSHandler(node *ipfs.Node, store Store, cfg config.Config, log *zap.Logger) http.Handler {
 	s := &ipfsServer{
-		renterd: renterd,
-		store:   ds,
-		log:     log,
+		node:  node,
+		store: store,
+		log:   log,
+
+		ipfs:    cfg.IPFS,
+		renterd: cfg.Renterd,
 	}
 
 	return jape.Mux(map[string]jape.Handler{

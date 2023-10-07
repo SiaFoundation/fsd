@@ -22,11 +22,12 @@ type (
 	}
 
 	apiServer struct {
-		worker  *worker.Client
-		renterd config.Renterd
+		node   *ipfs.Node
+		worker *worker.Client
+		store  Store
+		log    *zap.Logger
 
-		store Store
-		log   *zap.Logger
+		renterd config.Renterd
 	}
 )
 
@@ -42,6 +43,56 @@ func (as *apiServer) handleCalculate(jc jape.Context) {
 	jc.Encode(blocks)
 }
 
+func (as *apiServer) handlePin(jc jape.Context) {
+	ctx := jc.Request.Context()
+	var cidStr string
+	if err := jc.DecodeParam("cid", &cidStr); err != nil {
+		return
+	}
+	cid, err := cid.Parse(cidStr)
+	if err != nil {
+		jc.Error(err, http.StatusBadRequest)
+		return
+	}
+
+	r, err := as.node.DownloadCID(ctx, cid)
+	if err != nil {
+		jc.Error(err, http.StatusInternalServerError)
+		return
+	}
+	defer r.Close()
+
+	pr, pw := io.Pipe()
+	tr := io.TeeReader(r, pw)
+	uploadErr := make(chan error, 1)
+
+	go func() {
+		defer pw.Close()
+		defer close(uploadErr)
+
+		_, err = as.worker.UploadObject(ctx, tr, cid.Hash().B58String(), api.UploadWithBucket(as.renterd.Bucket))
+		if err != nil {
+			uploadErr <- err
+		}
+	}()
+
+	blocks, err := ipfs.BuildBalancedCID(cidStr, pr)
+	if err != nil {
+		jc.Error(err, http.StatusInternalServerError)
+		return
+	}
+
+	if err := <-uploadErr; err != nil {
+		jc.Error(err, http.StatusInternalServerError)
+		return
+	}
+
+	if err := as.store.AddBlocks(ctx, blocks); err != nil {
+		jc.Error(err, http.StatusInternalServerError)
+		return
+	}
+}
+
 func (as *apiServer) handleUpload(jc jape.Context) {
 	ctx := jc.Request.Context()
 	var cidStr string
@@ -55,6 +106,7 @@ func (as *apiServer) handleUpload(jc jape.Context) {
 	}
 
 	body := jc.Request.Body
+	defer body.Close()
 
 	pr, pw := io.Pipe()
 	r := io.TeeReader(body, pw)
@@ -62,7 +114,6 @@ func (as *apiServer) handleUpload(jc jape.Context) {
 
 	go func() {
 		defer pw.Close()
-		defer body.Close()
 		defer close(uploadErr)
 
 		_, err = as.worker.UploadObject(ctx, r, cid.Hash().B58String(), api.UploadWithBucket(as.renterd.Bucket))
@@ -93,16 +144,18 @@ func (as *apiServer) handleUpload(jc jape.Context) {
 }
 
 // NewAPIHandler returns a new http.Handler that handles requests to the api
-func NewAPIHandler(renterd config.Renterd, ds Store, log *zap.Logger) http.Handler {
+func NewAPIHandler(node *ipfs.Node, store Store, cfg config.Config, log *zap.Logger) http.Handler {
 	s := &apiServer{
-		worker:  worker.NewClient(renterd.Address, renterd.Password),
-		renterd: renterd,
+		worker:  worker.NewClient(cfg.Renterd.Address, cfg.Renterd.Password),
+		renterd: cfg.Renterd,
 
-		store: ds,
+		node:  node,
+		store: store,
 		log:   log,
 	}
 	return jape.Mux(map[string]jape.Handler{
 		"POST /api/cid/calculate": s.handleCalculate,
 		"POST /api/upload/:cid":   s.handleUpload,
+		"POST /api/pin/:cid":      s.handlePin,
 	})
 }
