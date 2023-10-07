@@ -13,9 +13,9 @@ COPY . .
 
 # Build the Go application
 RUN go generate ./...
-RUN go build -o bin/ -tags='netgo timetzdata' -trimpath -a -ldflags '-s -w' ./cmd/fsd
+RUN CGO_ENABLED=0 go build -o bin/ -tags='netgo timetzdata' -trimpath -a -ldflags '-s -w' ./cmd/fsd
 
-FROM debian:stable-slim
+FROM scratch
 
 COPY --from=builder /app/bin/* /usr/bin/
 
