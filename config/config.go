@@ -10,7 +10,10 @@ type (
 
 	// IPFS contains the listen address of the IPFS gateway
 	IPFS struct {
-		GatewayAddress string `yaml:"gatewayAddress"`
+		PrivateKey        string   `yaml:"privateKey"`
+		GatewayAddress    string   `yaml:"gatewayAddress"`
+		ListenAddresses   []string `yaml:"listenAddresses"`
+		AnnounceAddresses []string `yaml:"announceAddresses"`
 	}
 
 	// API contains the listen address of the API server

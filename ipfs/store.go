@@ -1,4 +1,4 @@
-package blockstore
+package ipfs
 
 import (
 	"bytes"
@@ -7,41 +7,49 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ipfs/boxo/blockstore"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"go.sia.tech/fsd/config"
-	"go.sia.tech/fsd/persist/badger"
+	"go.uber.org/zap"
 )
 
 // A Store implements the IPFS blockstore interface
-type Store struct {
-	bucket string
+type (
+	Store interface {
+		GetBlock(ctx context.Context, c cid.Cid) (Block, error)
+		HasBlock(ctx context.Context, c cid.Cid) (bool, error)
+		AllKeysChan(ctx context.Context) (<-chan cid.Cid, error)
+	}
 
-	db      *badger.Store
-	renterd config.Renterd
-}
+	RenterdBlockStore struct {
+		store   Store
+		log     *zap.Logger
+		renterd config.Renterd
+	}
+)
 
 // DeleteBlock removes a given block from the blockstore.
 // note: this is not implemented
-func (s *Store) DeleteBlock(context.Context, cid.Cid) error {
+func (bs *RenterdBlockStore) DeleteBlock(context.Context, cid.Cid) error {
 	return errors.New("cannot put blocks")
 }
 
 // Has returns whether or not a given block is in the blockstore.
-func (s *Store) Has(ctx context.Context, c cid.Cid) (bool, error) {
-	return s.db.HasBlock(c)
+func (bs *RenterdBlockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
+	bs.log.Debug("has block", zap.String("cid", c.Hash().B58String()))
+	return bs.store.HasBlock(ctx, c)
 }
 
 // Get returns a block by CID
-func (s *Store) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
-	cm, err := s.db.GetBlock(c)
+func (bs *RenterdBlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
+	bs.log.Debug("get block", zap.String("cid", c.Hash().B58String()))
+	cm, err := bs.store.GetBlock(ctx, c)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cid: %w", err)
 	}
 
 	var buf bytes.Buffer
-	r, err := downloadObject(ctx, s.renterd, cm.Key, cm.Offset, cm.Length)
+	r, err := downloadObject(ctx, bs.renterd, cm.Key, cm.Offset, cm.Length)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download object: %w", err)
 	}
@@ -57,19 +65,20 @@ func (s *Store) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
 }
 
 // GetSize returns the CIDs mapped BlockSize
-func (s *Store) GetSize(ctx context.Context, c cid.Cid) (int, error) {
-	cm, err := s.db.GetBlock(c)
+func (bs *RenterdBlockStore) GetSize(ctx context.Context, c cid.Cid) (int, error) {
+	bs.log.Debug("get size", zap.String("cid", c.Hash().B58String()))
+	cm, err := bs.store.GetBlock(ctx, c)
 	return int(cm.Length), err
 }
 
 // Put puts a given block to the underlying datastore
-func (s *Store) Put(context.Context, blocks.Block) error {
+func (bs *RenterdBlockStore) Put(context.Context, blocks.Block) error {
 	return errors.New("cannot put blocks")
 }
 
 // PutMany puts a slice of blocks at the same time using batching
 // capabilities of the underlying datastore whenever possible.
-func (s *Store) PutMany(context.Context, []blocks.Block) error {
+func (bs *RenterdBlockStore) PutMany(context.Context, []blocks.Block) error {
 	return errors.New("cannot put blocks")
 }
 
@@ -86,47 +95,21 @@ func (s *Store) PutMany(context.Context, []blocks.Block) error {
 //
 // When underlying blockstore is operating on Multihash and codec information
 // is not preserved, returned CIDs will use Raw (0x55) codec.
-func (s *Store) AllKeysChan(ctx context.Context) (<-chan cid.Cid, error) {
-	return s.db.AllKeysChan(ctx)
+func (bs *RenterdBlockStore) AllKeysChan(ctx context.Context) (<-chan cid.Cid, error) {
+	return bs.store.AllKeysChan(ctx)
 }
 
 // HashOnRead specifies if every read block should be
 // rehashed to make sure it matches its CID.
-func (s *Store) HashOnRead(enabled bool) {
+func (bs *RenterdBlockStore) HashOnRead(enabled bool) {
 	// TODO: implement
 }
 
-// unlocker is a stub implementation of blockstore.Unlocker
-type unlocker struct{}
-
-func (u unlocker) Unlock(context.Context) {}
-
-// GCLock locks the blockstore for garbage collection. No operations
-// that expect to finish with a pin should occur simultaneously.
-// Reading during GC is safe, and requires no lock.
-func (s *Store) GCLock(context.Context) blockstore.Unlocker {
-	return unlocker{}
-}
-
-// PinLock locks the blockstore for sequences of puts expected to finish
-// with a pin (before GC). Multiple put->pin sequences can write through
-// at the same time, but no GC should happen simultaneously.
-// Reading during Pinning is safe, and requires no lock.
-func (s *Store) PinLock(context.Context) blockstore.Unlocker {
-	return unlocker{}
-}
-
-// GCRequested returns true if GCLock has been called and is waiting to
-// take the lock
-func (s *Store) GCRequested(context.Context) bool {
-	return false
-}
-
-// New creates a new blockstore backed by the given badger.Store and renterd client
-func New(bucket string, db *badger.Store, renterd config.Renterd) *Store {
-	return &Store{
-		bucket:  bucket,
-		db:      db,
+// NewRenterdBlockStore creates a new blockstore backed by the given
+// badger.Store and a renterd node
+func NewRenterdBlockStore(store Store, renterd config.Renterd) *RenterdBlockStore {
+	return &RenterdBlockStore{
+		store:   store,
 		renterd: renterd,
 	}
 }

@@ -1,7 +1,6 @@
 package ipfs
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -15,9 +14,6 @@ import (
 	ipld "github.com/ipfs/go-ipld-format"
 	multihash "github.com/multiformats/go-multihash/core"
 )
-
-// ErrNotFound is returned when a CID is not found in the store
-var ErrNotFound = errors.New("not found")
 
 // A Block is an IPFS chunk with metadata
 // for renterd

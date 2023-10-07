@@ -11,16 +11,18 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/ipfs/kubo/repo/fsrepo"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"go.sia.tech/fsd/build"
 	"go.sia.tech/fsd/config"
 	shttp "go.sia.tech/fsd/http"
+	"go.sia.tech/fsd/ipfs"
 	"go.sia.tech/fsd/persist/badger"
 	"go.sia.tech/jape"
-	"go.sia.tech/renterd/worker"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/yaml.v3"
+	"lukechampine.com/frand"
 )
 
 var (
@@ -88,20 +90,6 @@ func main() {
 
 	mustLoadConfig(dir, log)
 
-	ipfsPath := filepath.Join(dir, "ipfs")
-
-	if err := setupPlugins(filepath.Join(ipfsPath, "plugins")); err != nil {
-		log.Fatal("failed to setup ipfs plugins", zap.Error(err))
-	}
-
-	if flag.Arg(0) == "init" {
-		log.Info("initializing repo", zap.String("path", ipfsPath))
-		if err := initRepo(ipfsPath); err != nil {
-			log.Fatal("failed to init repo", zap.Error(err))
-		}
-		return
-	}
-
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 
@@ -111,15 +99,10 @@ func main() {
 	}
 	defer ds.Close()
 
-	client := worker.NewClient(cfg.Renterd.Address, cfg.Renterd.Password)
+	privateKey, publicKey, _ := crypto.GenerateEd25519Key(frand.Reader)
+	store := ipfs.NewRenterdBlockStore(ds, cfg.Renterd)
 
-	r, err := fsrepo.Open(ipfsPath)
-	if err != nil {
-		log.Fatal("failed to open repo", zap.Error(err))
-	}
-	defer r.Close()
-
-	coreAPI, node, err := createNode(ctx, r, ds, client, cfg.Renterd.Bucket)
+	node, err := ipfs.NewNode(ctx, privateKey, cfg.IPFS, store)
 	if err != nil {
 		log.Fatal("failed to start ipfs node", zap.Error(err))
 	}
@@ -143,7 +126,7 @@ func main() {
 	defer apiServer.Close()
 
 	gatewayServer := &http.Server{
-		Handler: shttp.NewIPFSHandler(cfg.Renterd, coreAPI, ds, log.Named("gateway")),
+		Handler: shttp.NewIPFSHandler(cfg.Renterd, ds, log.Named("gateway")),
 	}
 	defer gatewayServer.Close()
 
@@ -159,7 +142,13 @@ func main() {
 		}
 	}()
 
+	peerID, err := peer.IDFromPublicKey(publicKey)
+	if err != nil {
+		log.Fatal("failed to get peer id", zap.Error(err))
+	}
+
 	log.Info("fsd started",
+		zap.Stringer("peerID", peerID),
 		zap.String("apiAddress", apiListener.Addr().String()),
 		zap.String("gatewayAddress", gatewayListener.Addr().String()),
 		zap.String("version", build.Version()),

@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"io"
 	"net/http"
 
@@ -16,8 +17,8 @@ import (
 type (
 	// A Store is a persistent store for IPFS blocks
 	Store interface {
-		GetBlock(cid.Cid) (ipfs.Block, error)
-		AddBlocks(blocks []ipfs.Block) error
+		GetBlock(context.Context, cid.Cid) (ipfs.Block, error)
+		AddBlocks(context.Context, []ipfs.Block) error
 	}
 
 	apiServer struct {
@@ -42,6 +43,7 @@ func (as *apiServer) handleCalculate(jc jape.Context) {
 }
 
 func (as *apiServer) handleUpload(jc jape.Context) {
+	ctx := jc.Request.Context()
 	var cidStr string
 	if err := jc.DecodeParam("cid", &cidStr); err != nil {
 		return
@@ -63,7 +65,7 @@ func (as *apiServer) handleUpload(jc jape.Context) {
 		defer body.Close()
 		defer close(uploadErr)
 
-		_, err = as.worker.UploadObject(jc.Request.Context(), r, cid.Hash().B58String(), api.UploadWithBucket(as.renterd.Bucket))
+		_, err = as.worker.UploadObject(ctx, r, cid.Hash().B58String(), api.UploadWithBucket(as.renterd.Bucket))
 		if err != nil {
 			uploadErr <- err
 		}
@@ -80,7 +82,7 @@ func (as *apiServer) handleUpload(jc jape.Context) {
 		return
 	}
 
-	if err := as.store.AddBlocks(blocks); err != nil {
+	if err := as.store.AddBlocks(ctx, blocks); err != nil {
 		jc.Error(err, http.StatusInternalServerError)
 		return
 	}

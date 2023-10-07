@@ -1,4 +1,4 @@
-package blockstore
+package ipfs
 
 import (
 	"context"
