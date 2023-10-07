@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"net"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -98,7 +100,24 @@ func main() {
 	}
 	defer db.Close()
 
-	privateKey, _, _ := crypto.GenerateEd25519Key(frand.Reader)
+	var privateKey crypto.PrivKey
+	if cfg.IPFS.PrivateKey != "" {
+		buf, err := hex.DecodeString(strings.TrimPrefix(cfg.IPFS.PrivateKey, "ed25519:"))
+		if err != nil {
+			log.Fatal("failed to decode private key", zap.Error(err))
+		} else if len(buf) != 64 {
+			log.Fatal("private key must be 64 bytes")
+		}
+		privateKey, err = crypto.UnmarshalEd25519PrivateKey(buf)
+		if err != nil {
+			log.Fatal("failed to unmarshal private key", zap.Error(err))
+		}
+	} else {
+		privateKey, _, err = crypto.GenerateEd25519Key(frand.Reader)
+		if err != nil {
+			log.Fatal("failed to generate private key", zap.Error(err))
+		}
+	}
 	store := ipfs.NewRenterdBlockStore(db, cfg.Renterd, log.Named("blockstore"))
 
 	node, err := ipfs.NewNode(ctx, privateKey, cfg.IPFS, store)
@@ -141,8 +160,15 @@ func main() {
 		}
 	}()
 
+	buf, err := privateKey.Raw()
+	if err != nil {
+		log.Fatal("failed to marshal private key", zap.Error(err))
+	}
+	prettyKey := "ed25519:" + hex.EncodeToString(buf)
+
 	log.Info("fsd started",
 		zap.Stringer("peerID", node.PeerID()),
+		zap.String("privateKey", prettyKey),
 		zap.String("apiAddress", apiListener.Addr().String()),
 		zap.String("gatewayAddress", gatewayListener.Addr().String()),
 		zap.String("version", build.Version()),
