@@ -162,6 +162,7 @@ func TestTest(t *testing.T) {
 	downloadCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
+	// note: this currently only downloads the root CID. Need to walk the DAG
 	r, err := node.DownloadCID(downloadCtx, c)
 	if err != nil {
 		t.Fatal(err)

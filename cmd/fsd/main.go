@@ -12,7 +12,6 @@ import (
 	"syscall"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"go.sia.tech/fsd/build"
 	"go.sia.tech/fsd/config"
 	shttp "go.sia.tech/fsd/http"
@@ -99,7 +98,7 @@ func main() {
 	}
 	defer ds.Close()
 
-	privateKey, publicKey, _ := crypto.GenerateEd25519Key(frand.Reader)
+	privateKey, _, _ := crypto.GenerateEd25519Key(frand.Reader)
 	store := ipfs.NewRenterdBlockStore(ds, cfg.Renterd)
 
 	node, err := ipfs.NewNode(ctx, privateKey, cfg.IPFS, store)
@@ -142,13 +141,8 @@ func main() {
 		}
 	}()
 
-	peerID, err := peer.IDFromPublicKey(publicKey)
-	if err != nil {
-		log.Fatal("failed to get peer id", zap.Error(err))
-	}
-
 	log.Info("fsd started",
-		zap.Stringer("peerID", peerID),
+		zap.Stringer("peerID", node.PeerID()),
 		zap.String("apiAddress", apiListener.Addr().String()),
 		zap.String("gatewayAddress", gatewayListener.Addr().String()),
 		zap.String("version", build.Version()),

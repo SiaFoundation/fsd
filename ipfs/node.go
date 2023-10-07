@@ -32,6 +32,7 @@ var bootstrapPeers = []peer.AddrInfo{
 	mustParsePeer("/ip4/104.131.131.82/udp/4001/quic/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ"),
 }
 
+// A Node is a minimal IPFS node
 type Node struct {
 	dht  *kdht.IpfsDHT
 	host host.Host
@@ -42,6 +43,7 @@ type Node struct {
 	bitswap      *bitswap.Bitswap
 }
 
+// Close closes the node
 func (n *Node) Close() error {
 	n.dht.Close()
 	n.bitswap.Close()
@@ -80,6 +82,7 @@ func mustParsePeer(s string) peer.AddrInfo {
 	return *info
 }
 
+// NewNode creates a new IPFS node
 func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, blockstore blockstore.Blockstore) (*Node, error) {
 	cmgr, err := connmgr.NewConnManager(600, 900)
 	if err != nil {

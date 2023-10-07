@@ -13,14 +13,19 @@ import (
 	"go.uber.org/zap"
 )
 
-// A Store implements the IPFS blockstore interface
 type (
+	// A Store is a persistent store for IPFS blocks
 	Store interface {
 		GetBlock(ctx context.Context, c cid.Cid) (Block, error)
 		HasBlock(ctx context.Context, c cid.Cid) (bool, error)
 		AllKeysChan(ctx context.Context) (<-chan cid.Cid, error)
 	}
 
+	// A RenterdBlockStore is a blockstore backed by a renterd node IPFS blocks
+	// are stored in a local database and backed by a renterd node. The primary
+	// difference between this and a normal IPFS blockstore is that an object is
+	// stored on the renterd node in one piece and the offsets for each block
+	// are stored in the database.
 	RenterdBlockStore struct {
 		store   Store
 		log     *zap.Logger
