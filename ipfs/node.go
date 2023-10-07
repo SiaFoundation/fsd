@@ -6,7 +6,7 @@ import (
 	"io"
 
 	"github.com/ipfs/boxo/bitswap"
-	"github.com/ipfs/boxo/bitswap/network"
+	bnetwork "github.com/ipfs/boxo/bitswap/network"
 	"github.com/ipfs/boxo/blockservice"
 	"github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/boxo/ipld/merkledag"
@@ -14,9 +14,11 @@ import (
 	"github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/libp2p/go-libp2p"
-	kdht "github.com/libp2p/go-libp2p-kad-dht"
+	dht "github.com/libp2p/go-libp2p-kad-dht"
+	"github.com/libp2p/go-libp2p-kad-dht/fullrt"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/multiformats/go-multiaddr"
@@ -34,7 +36,7 @@ var bootstrapPeers = []peer.AddrInfo{
 
 // A Node is a minimal IPFS node
 type Node struct {
-	dht  *kdht.IpfsDHT
+	frt  *fullrt.FullRT
 	host host.Host
 
 	blockstore   blockstore.Blockstore
@@ -45,7 +47,7 @@ type Node struct {
 
 // Close closes the node
 func (n *Node) Close() error {
-	n.dht.Close()
+	n.frt.Close()
 	n.bitswap.Close()
 	n.host.Close()
 	n.blockService.Close()
@@ -66,12 +68,12 @@ func (n *Node) DownloadCID(ctx context.Context, c cid.Cid) (io.ReadSeekCloser, e
 
 // PeerID returns the peer ID of the node
 func (n *Node) PeerID() peer.ID {
-	return n.dht.PeerID()
+	return n.frt.Host().ID()
 }
 
 // Peers returns the list of peers in the routing table
 func (n *Node) Peers() []peer.ID {
-	return n.dht.RoutingTable().ListPeers()
+	return n.frt.Host().Network().Peers()
 }
 
 func mustParsePeer(s string) peer.AddrInfo {
@@ -93,6 +95,8 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, bl
 		libp2p.ListenAddrStrings(cfg.ListenAddresses...),
 		libp2p.ConnectionManager(cmgr),
 		libp2p.Identity(privateKey),
+		libp2p.EnableRelay(),
+		libp2p.ResourceManager(new(network.NullResourceManager)),
 		libp2p.DefaultTransports,
 	}
 
@@ -115,21 +119,21 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, bl
 		return nil, fmt.Errorf("failed to create libp2p host: %w", err)
 	}
 
-	dht, err := kdht.New(ctx, host,
-		kdht.Mode(kdht.ModeServer),
-		kdht.BootstrapPeers(bootstrapPeers...))
+	frt, err := fullrt.NewFullRT(host, dht.DefaultPrefix,
+		fullrt.DHTOption(dht.Mode(dht.ModeServer), dht.BootstrapPeers(bootstrapPeers...), dht.BucketSize(20)),
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create dht: %w", err)
+		return nil, fmt.Errorf("constructing fullrt: %w", err)
 	}
 
-	bitswapNet := network.NewFromIpfsHost(host, dht)
+	bitswapNet := bnetwork.NewFromIpfsHost(host, frt)
 	bitswap := bitswap.New(ctx, bitswapNet, blockstore)
 
 	blockServ := blockservice.New(blockstore, bitswap)
 	dagService := merkledag.NewDAGService(blockServ)
 
 	return &Node{
-		dht:          dht,
+		frt:          frt,
 		host:         host,
 		blockstore:   blockstore,
 		bitswap:      bitswap,

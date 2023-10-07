@@ -47,6 +47,7 @@ func (is *ipfsServer) handleIPFS(jc jape.Context) {
 		defer r.Close()
 
 		io.Copy(jc.ResponseWriter, r)
+		return
 	} else if err != nil {
 		jc.Error(err, http.StatusInternalServerError)
 		is.log.Error("failed to get block", zap.Error(err))
@@ -62,7 +63,6 @@ func (is *ipfsServer) handleIPFS(jc jape.Context) {
 	}
 	defer reader.Close()
 
-	jc.ResponseWriter.WriteHeader(http.StatusOK)
 	if _, err := io.Copy(jc.ResponseWriter, reader); err != nil {
 		is.log.Error("failed to copy file", zap.Error(err))
 		return
