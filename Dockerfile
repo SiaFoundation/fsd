@@ -1,5 +1,5 @@
 # Use the official Go image
-FROM golang:1.20
+FROM golang:1.21 AS builder
 
 # Set the working directory inside the container
 WORKDIR /app
@@ -12,10 +12,19 @@ RUN go mod download
 COPY . .
 
 # Build the Go application
-RUN go build -o ipfsd .
+RUN go generate ./...
+RUN CGO_ENABLED=0 go build -o bin/ -tags='netgo timetzdata' -trimpath -a -ldflags '-s -w' ./cmd/fsd
 
-# Expose the port that the application listens on
-EXPOSE 8080
+FROM scratch
+
+COPY --from=builder /app/bin/* /usr/bin/
+
+# Expose the default gateway port
+EXPOSE 8080/tcp
+# Expose the default API port
+EXPOSE 8081/tcp
+
+VOLUME ["/data"]
 
 # Run the application
-CMD ["./ipfsd"]
+CMD ["fsd", "-dir", "/data"]

@@ -1,5 +1,12 @@
-domain: https://ipfs.io
-upload_password: securepasswordforuploading
-renterd_url: https://localhost:9980
-renterd_password: reallysecurepassword
-renterd_bucket: ipfs
+api:
+  address: :8081
+  password: sia is cool
+renterd:
+  address: http://localhost:9980/api/worker
+  password: sia is extra cool
+  bucket: ipfs
+ipfs:
+  gatewayAddress: :8080 # gateway URL
+  listenAddresses:
+    - /ip4/0.0.0.0/tcp/4001 # the listen address for bitswap. Since no announce addresses are configured, no bits will be swapped
+  fetchRemote: true # true if you want to download files that aren't pinned
