@@ -40,6 +40,9 @@ var (
 		API: config.API{
 			Address: ":8081",
 		},
+		Log: config.Log{
+			Level: "info",
+		},
 	}
 )
 
@@ -90,6 +93,24 @@ func main() {
 	flag.Parse()
 
 	mustLoadConfig(dir, log)
+
+	var level zap.AtomicLevel
+	switch cfg.Log.Level {
+	case "debug":
+		level = zap.NewAtomicLevelAt(zap.DebugLevel)
+	case "info":
+		level = zap.NewAtomicLevelAt(zap.InfoLevel)
+	case "warn":
+		level = zap.NewAtomicLevelAt(zap.WarnLevel)
+	case "error":
+		level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	default:
+		log.Fatal("invalid log level", zap.String("level", cfg.Log.Level))
+	}
+
+	log = log.WithOptions(zap.WrapCore(func(core zapcore.Core) zapcore.Core {
+		return zapcore.NewCore(consoleEncoder, zapcore.Lock(os.Stdout), level)
+	}))
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()

@@ -23,10 +23,15 @@ type (
 		Password string `yaml:"password"`
 	}
 
+	Log struct {
+		Level string `yaml:"level"`
+	}
+
 	// Config contains the configuration for fsd
 	Config struct {
 		Renterd Renterd `yaml:"renterd"`
 		IPFS    IPFS    `yaml:"ipfs"`
 		API     API     `yaml:"api"`
+		Log     Log     `yaml:"log"`
 	}
 )
