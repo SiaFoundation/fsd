@@ -23,6 +23,7 @@ type (
 		Password string `yaml:"password"`
 	}
 
+	// Log contains the log settings
 	Log struct {
 		Level string `yaml:"level"`
 	}
