@@ -55,7 +55,7 @@ func (as *apiServer) handlePin(jc jape.Context) {
 		return
 	}
 
-	r, err := as.node.DownloadCID(ctx, cid)
+	r, err := as.node.DownloadCID(ctx, cid, nil)
 	if err != nil {
 		jc.Error(err, http.StatusInternalServerError)
 		return

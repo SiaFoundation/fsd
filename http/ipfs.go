@@ -1,8 +1,10 @@
 package http
 
 import (
+	"errors"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
@@ -24,9 +26,23 @@ type ipfsServer struct {
 func (is *ipfsServer) handleIPFS(jc jape.Context) {
 	ctx := jc.Request.Context()
 
-	var cidStr string
-	if err := jc.DecodeParam("cid", &cidStr); err != nil {
+	var pathStr string
+	if err := jc.DecodeParam("path", &pathStr); err != nil {
 		return
+	}
+
+	var cidStr string
+	is.log.Debug("downloading file", zap.String("path", pathStr))
+	pathStr = strings.TrimPrefix(pathStr, "/") // remove leading slash
+	path := strings.Split(pathStr, "/")
+	if len(path) == 0 || path[0] == "" {
+		jc.Error(errors.New("bad path"), http.StatusBadRequest)
+		return
+	} else if len(path) == 1 {
+		cidStr = path[0]
+	} else {
+		cidStr = path[0]
+		path = path[1:]
 	}
 
 	cid, err := cid.Parse(cidStr)
@@ -38,7 +54,7 @@ func (is *ipfsServer) handleIPFS(jc jape.Context) {
 	block, err := is.store.GetBlock(ctx, cid)
 	if format.IsNotFound(err) && is.ipfs.FetchRemote {
 		is.log.Info("downloading from ipfs", zap.String("cid", cid.Hash().B58String()))
-		r, err := is.node.DownloadCID(ctx, cid)
+		r, err := is.node.DownloadCID(ctx, cid, path)
 		if err != nil {
 			jc.Error(err, http.StatusInternalServerError)
 			is.log.Error("failed to download cid", zap.Error(err))
@@ -81,6 +97,6 @@ func NewIPFSHandler(node *ipfs.Node, store Store, cfg config.Config, log *zap.Lo
 	}
 
 	return jape.Mux(map[string]jape.Handler{
-		"GET /ipfs/:cid": s.handleIPFS,
+		"GET /ipfs/*path": s.handleIPFS,
 	})
 }

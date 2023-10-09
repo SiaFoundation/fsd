@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/ipfs/boxo/bitswap"
 	bnetwork "github.com/ipfs/boxo/bitswap/network"
@@ -55,14 +56,42 @@ func (n *Node) Close() error {
 }
 
 // DownloadCID downloads the CID
-func (n *Node) DownloadCID(ctx context.Context, c cid.Cid) (io.ReadSeekCloser, error) {
+func (n *Node) DownloadCID(ctx context.Context, c cid.Cid, path []string) (io.ReadSeekCloser, error) {
 	dagSess := merkledag.NewSession(ctx, n.dagService)
 	rootNode, err := dagSess.Get(ctx, c)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root node: %w", err)
 	}
 
-	dr, err := fsio.NewDagReader(ctx, rootNode, dagSess)
+	var traverse func(context.Context, format.Node, []string) (format.Node, error)
+	traverse = func(ctx context.Context, parent format.Node, path []string) (format.Node, error) {
+		if len(path) == 0 {
+			return parent, nil
+		}
+
+		childLink, rem, err := parent.Resolve(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve path %q: %w", strings.Join(path, "/"), err)
+		}
+
+		switch v := childLink.(type) {
+		case *format.Link:
+			childNode, err := dagSess.Get(ctx, v.Cid)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get child node %q: %w", v.Cid, err)
+			}
+			return traverse(ctx, childNode, rem)
+		default:
+			return nil, fmt.Errorf("expected link node, got %T", childLink)
+		}
+	}
+
+	node, err := traverse(ctx, rootNode, path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to traverse path: %w", err)
+	}
+
+	dr, err := fsio.NewDagReader(ctx, node, dagSess)
 	return dr, err
 }
 
