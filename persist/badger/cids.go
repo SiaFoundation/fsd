@@ -6,8 +6,7 @@ import (
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/ipfs/go-cid"
-	format "github.com/ipfs/go-ipld-format"
-	"go.sia.tech/fsd/ipfs"
+	"go.sia.tech/fsd/sia"
 )
 
 // HasBlock returns true if the CID is in the store
@@ -27,12 +26,12 @@ func (s *Store) HasBlock(_ context.Context, c cid.Cid) (ok bool, err error) {
 }
 
 // GetBlock returns the block metadata for a given CID
-func (s *Store) GetBlock(_ context.Context, c cid.Cid) (cm ipfs.Block, err error) {
+func (s *Store) GetBlock(_ context.Context, c cid.Cid) (cm sia.Block, err error) {
 	err = s.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(c.Bytes()))
 		if err != nil {
 			if err == badger.ErrKeyNotFound {
-				return format.ErrNotFound{Cid: c}
+				return sia.ErrNotFound
 			}
 			return err
 		}
@@ -44,7 +43,7 @@ func (s *Store) GetBlock(_ context.Context, c cid.Cid) (cm ipfs.Block, err error
 }
 
 // AddBlocks adds blocks to the store
-func (s *Store) AddBlocks(_ context.Context, blocks []ipfs.Block) error {
+func (s *Store) AddBlocks(_ context.Context, blocks []sia.Block) error {
 	return s.db.Update(func(txn *badger.Txn) error {
 		for _, block := range blocks {
 			buf, err := json.Marshal(block)

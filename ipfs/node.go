@@ -55,7 +55,7 @@ func (n *Node) Close() error {
 	return nil
 }
 
-// DownloadCID downloads the CID
+// DownloadCID downloads a CID from IPFS
 func (n *Node) DownloadCID(ctx context.Context, c cid.Cid, path []string) (io.ReadSeekCloser, error) {
 	dagSess := merkledag.NewSession(ctx, n.dagService)
 	rootNode, err := dagSess.Get(ctx, c)

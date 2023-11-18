@@ -19,6 +19,7 @@ import (
 	shttp "go.sia.tech/fsd/http"
 	"go.sia.tech/fsd/ipfs"
 	"go.sia.tech/fsd/persist/badger"
+	"go.sia.tech/fsd/sia"
 	"go.sia.tech/jape"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -139,13 +140,15 @@ func main() {
 			log.Fatal("failed to generate private key", zap.Error(err))
 		}
 	}
-	store := ipfs.NewRenterdBlockStore(db, cfg.Renterd, log.Named("blockstore"))
+	store := sia.NewBlockStore(db, cfg.Renterd, log.Named("blockstore"))
 
-	node, err := ipfs.NewNode(ctx, privateKey, cfg.IPFS, store)
+	inode, err := ipfs.NewNode(ctx, privateKey, cfg.IPFS, store)
 	if err != nil {
 		log.Fatal("failed to start ipfs node", zap.Error(err))
 	}
-	defer node.Close()
+	defer inode.Close()
+
+	snode := sia.New(db, cfg.Renterd, log.Named("sia"))
 
 	apiListener, err := net.Listen("tcp", cfg.API.Address)
 	if err != nil {
@@ -160,12 +163,12 @@ func main() {
 	defer gatewayListener.Close()
 
 	apiServer := &http.Server{
-		Handler: jape.BasicAuth(cfg.API.Password)(shttp.NewAPIHandler(node, db, cfg, log.Named("api"))),
+		Handler: jape.BasicAuth(cfg.API.Password)(shttp.NewAPIHandler(inode, snode, cfg, log.Named("api"))),
 	}
 	defer apiServer.Close()
 
 	gatewayServer := &http.Server{
-		Handler: shttp.NewIPFSHandler(node, db, cfg, log.Named("gateway")),
+		Handler: shttp.NewIPFSGatewayHandler(inode, snode, cfg, log.Named("gateway")),
 	}
 	defer gatewayServer.Close()
 
@@ -188,7 +191,7 @@ func main() {
 	prettyKey := "ed25519:" + hex.EncodeToString(buf)
 
 	log.Info("fsd started",
-		zap.Stringer("peerID", node.PeerID()),
+		zap.Stringer("peerID", inode.PeerID()),
 		zap.String("privateKey", prettyKey),
 		zap.String("apiAddress", apiListener.Addr().String()),
 		zap.String("gatewayAddress", gatewayListener.Addr().String()),
