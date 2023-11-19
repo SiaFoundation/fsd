@@ -13,6 +13,7 @@ import (
 
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
+	levelds "github.com/ipfs/go-ds-leveldb"
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"go.sia.tech/fsd/config"
@@ -144,11 +145,17 @@ func TestDownload(t *testing.T) {
 	}
 	defer store.Close()
 
-	memBlockStore := &memoryBlockStore{
+	ds, err := levelds.NewDatastore(filepath.Join(t.TempDir(), "fsdds.leveldb"), nil)
+	if err != nil {
+		log.Fatal("failed to open leveldb datastore", zap.Error(err))
+	}
+	defer ds.Close()
+
+	bs := &memoryBlockStore{
 		blocks: make(map[cid.Cid][]byte),
 	}
 
-	node, err := ipfs.NewNode(ctx, privateKey, config.IPFS{}, memBlockStore)
+	node, err := ipfs.NewNode(ctx, privateKey, config.IPFS{}, ds, bs)
 	if err != nil {
 		t.Fatal(err)
 	}

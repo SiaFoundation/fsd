@@ -13,6 +13,7 @@ import (
 	"strings"
 	"syscall"
 
+	levelds "github.com/ipfs/go-ds-leveldb"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"go.sia.tech/fsd/build"
 	"go.sia.tech/fsd/config"
@@ -140,9 +141,16 @@ func main() {
 			log.Fatal("failed to generate private key", zap.Error(err))
 		}
 	}
-	store := sia.NewBlockStore(db, cfg.Renterd, log.Named("blockstore"))
 
-	inode, err := ipfs.NewNode(ctx, privateKey, cfg.IPFS, store)
+	ds, err := levelds.NewDatastore(filepath.Join(dir, "fsdds.leveldb"), nil)
+	if err != nil {
+		log.Fatal("failed to open leveldb datastore", zap.Error(err))
+	}
+	defer ds.Close()
+
+	bs := sia.NewBlockStore(db, cfg.Renterd, log.Named("blockstore"))
+
+	inode, err := ipfs.NewNode(ctx, privateKey, cfg.IPFS, ds, bs)
 	if err != nil {
 		log.Fatal("failed to start ipfs node", zap.Error(err))
 	}

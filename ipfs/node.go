@@ -12,7 +12,9 @@ import (
 	"github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/boxo/ipld/merkledag"
 	fsio "github.com/ipfs/boxo/ipld/unixfs/io"
+	"github.com/ipfs/boxo/provider"
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-datastore"
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/libp2p/go-libp2p"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
@@ -37,19 +39,21 @@ var bootstrapPeers = []peer.AddrInfo{
 
 // A Node is a minimal IPFS node
 type Node struct {
-	frt  *fullrt.FullRT
 	host host.Host
+	frt  *fullrt.FullRT
 
 	blockstore   blockstore.Blockstore
 	blockService blockservice.BlockService
 	dagService   format.DAGService
 	bitswap      *bitswap.Bitswap
+	provider     provider.System
 }
 
 // Close closes the node
 func (n *Node) Close() error {
 	n.frt.Close()
 	n.bitswap.Close()
+	n.provider.Close()
 	n.host.Close()
 	n.blockService.Close()
 	return nil
@@ -114,7 +118,7 @@ func mustParsePeer(s string) peer.AddrInfo {
 }
 
 // NewNode creates a new IPFS node
-func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, blockstore blockstore.Blockstore) (*Node, error) {
+func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds datastore.Batching, bs blockstore.Blockstore) (*Node, error) {
 	cmgr, err := connmgr.NewConnManager(600, 900)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create connection manager: %w", err)
@@ -148,25 +152,37 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, bl
 		return nil, fmt.Errorf("failed to create libp2p host: %w", err)
 	}
 
-	frt, err := fullrt.NewFullRT(host, dht.DefaultPrefix,
-		fullrt.DHTOption(dht.Mode(dht.ModeServer), dht.BootstrapPeers(bootstrapPeers...), dht.BucketSize(20)),
-	)
+	dhtOpts := []dht.Option{
+		dht.Mode(dht.ModeServer),
+		dht.BootstrapPeers(bootstrapPeers...),
+		dht.BucketSize(20),
+		dht.Datastore(ds),
+	}
+	frt, err := fullrt.NewFullRT(host, dht.DefaultPrefix, fullrt.DHTOption(dhtOpts...))
 	if err != nil {
-		return nil, fmt.Errorf("constructing fullrt: %w", err)
+		return nil, fmt.Errorf("failed to create fullrt: %w", err)
 	}
 
 	bitswapNet := bnetwork.NewFromIpfsHost(host, frt)
-	bitswap := bitswap.New(ctx, bitswapNet, blockstore)
+	bitswap := bitswap.New(ctx, bitswapNet, bs)
 
-	blockServ := blockservice.New(blockstore, bitswap)
+	blockServ := blockservice.New(bs, bitswap)
 	dagService := merkledag.NewDAGService(blockServ)
+
+	bsp := provider.NewBlockstoreProvider(bs)
+
+	prov, err := provider.New(ds, provider.KeyProvider(bsp))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create provider: %w", err)
+	}
 
 	return &Node{
 		frt:          frt,
 		host:         host,
-		blockstore:   blockstore,
+		blockstore:   bs,
 		bitswap:      bitswap,
 		blockService: blockServ,
 		dagService:   dagService,
+		provider:     prov,
 	}, nil
 }
