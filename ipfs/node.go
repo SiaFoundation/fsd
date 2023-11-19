@@ -173,10 +173,9 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 
 	blockServ := blockservice.New(bs, bitswap)
 	dagService := merkledag.NewDAGService(blockServ)
-
 	bsp := provider.NewBlockstoreProvider(bs)
 
-	prov, err := provider.New(ds, provider.KeyProvider(bsp))
+	prov, err := provider.New(ds, provider.KeyProvider(bsp), provider.Online(frt))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create provider: %w", err)
 	}
