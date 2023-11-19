@@ -119,8 +119,8 @@ func (bs *RenterdBlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, 
 	}
 
 	node := merkledag.NodeWithData(buf)
-	if !node.Cid().Equals(c) {
-		panic("unexpected cid") // developer error
+	if actual := node.Cid(); !actual.Equals(c) {
+		panic(fmt.Errorf("unexpected cid: requested %q got %q", c.Hash().B58String(), actual.Hash().B58String())) // developer error
 	}
 	return node, nil
 }

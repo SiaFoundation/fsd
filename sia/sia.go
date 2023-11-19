@@ -63,7 +63,7 @@ func (n *Node) UploadCID(ctx context.Context, c cid.Cid, r io.Reader) error {
 		defer wg.Done()
 		defer metaW.Close()
 
-		if _, err := client.UploadObject(ctx, dataR, dataKey, api.UploadWithBucket(n.renterd.Bucket)); err != nil {
+		if _, err := client.UploadObject(ctx, dataR, n.renterd.Bucket, dataKey, api.UploadObjectOptions{}); err != nil {
 			errCh <- fmt.Errorf("failed to upload data: %w", err)
 			return
 		}
@@ -73,7 +73,7 @@ func (n *Node) UploadCID(ctx context.Context, c cid.Cid, r io.Reader) error {
 		defer wg.Done()
 		defer dataW.Close()
 
-		if _, err := client.UploadObject(ctx, metaR, metaKey, api.UploadWithBucket(n.renterd.Bucket)); err != nil {
+		if _, err := client.UploadObject(ctx, metaR, n.renterd.Bucket, metaKey, api.UploadObjectOptions{}); err != nil {
 			errCh <- fmt.Errorf("failed to upload metadata: %w", err)
 			return
 		}
