@@ -119,6 +119,13 @@ func (bs *RenterdBlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, 
 	}
 
 	node := merkledag.NodeWithData(buf)
+	for _, link := range cm.Links {
+		node.AddRawLink(link.Name, &format.Link{
+			Name: link.Name,
+			Size: link.Size,
+			Cid:  link.CID,
+		})
+	}
 	if actual := node.Cid(); !actual.Equals(c) {
 		panic(fmt.Errorf("unexpected cid: requested %q got %q", c.Hash().B58String(), actual.Hash().B58String())) // developer error
 	}
