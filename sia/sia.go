@@ -185,9 +185,10 @@ func (n *Node) CalculateBlocks(ctx context.Context, r io.Reader) ([]Block, error
 }
 
 // New creates a new Sia IPFS store
-func New(store Store, cfg config.Renterd, log *zap.Logger) *Node {
+func New(store Store, ipfs IPFSProvider, cfg config.Renterd, log *zap.Logger) *Node {
 	return &Node{
 		store: store,
+		ipfs:  ipfs,
 		log:   log,
 
 		renterd: cfg,

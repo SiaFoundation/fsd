@@ -156,7 +156,7 @@ func main() {
 	}
 	defer inode.Close()
 
-	snode := sia.New(db, cfg.Renterd, log.Named("sia"))
+	snode := sia.New(db, inode, cfg.Renterd, log.Named("sia"))
 
 	apiListener, err := net.Listen("tcp", cfg.API.Address)
 	if err != nil {
