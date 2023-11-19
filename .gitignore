@@ -2,3 +2,4 @@ filestore
 config.yml
 data
 bin
+.DS_Store
