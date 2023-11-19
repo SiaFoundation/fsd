@@ -117,6 +117,11 @@ func mustParsePeer(s string) peer.AddrInfo {
 	return *info
 }
 
+// Provide broadcasts a CID to the network
+func (n *Node) Provide(c cid.Cid) error {
+	return n.provider.Provide(c)
+}
+
 // NewNode creates a new IPFS node
 func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds datastore.Batching, bs blockstore.Blockstore) (*Node, error) {
 	cmgr, err := connmgr.NewConnManager(600, 900)

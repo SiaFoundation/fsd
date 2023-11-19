@@ -29,10 +29,16 @@ type (
 		AllKeysChan(ctx context.Context) (<-chan cid.Cid, error)
 	}
 
+	// An IPFSProvider broadcasts CIDs to the IPFS network
+	IPFSProvider interface {
+		Provide(cid.Cid) error
+	}
+
 	// A Node is a specialized IPFS gateway that retrieves data from a renterd
 	// node
 	Node struct {
 		store Store
+		ipfs  IPFSProvider
 		log   *zap.Logger
 
 		renterd config.Renterd
@@ -107,10 +113,20 @@ func (n *Node) UploadCID(ctx context.Context, c cid.Cid, r io.Reader) error {
 	default:
 	}
 
+	blocks := dagSvc.Blocks()
+
 	if rootNode.Cid().Hash().B58String() != c.Hash().B58String() {
 		return fmt.Errorf("unexpected root cid: %s", rootNode.Cid().Hash().B58String())
+	} else if err := n.store.AddBlocks(ctx, blocks); err != nil {
+		return fmt.Errorf("failed to add blocks to store: %w", err)
 	}
-	return n.store.AddBlocks(ctx, dagSvc.Blocks())
+
+	for _, b := range blocks {
+		if err := n.ipfs.Provide(b.CID); err != nil {
+			return fmt.Errorf("failed to provide block: %w", err)
+		}
+	}
+	return nil
 }
 
 // ProxyHTTPDownload proxies an http download request to the renterd node
