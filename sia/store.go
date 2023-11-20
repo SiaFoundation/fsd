@@ -37,7 +37,7 @@ func (bs *RenterdBlockStore) DeleteBlock(context.Context, cid.Cid) error {
 
 // Has returns whether or not a given block is in the blockstore.
 func (bs *RenterdBlockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
-	bs.log.Debug("has block", zap.String("cid", c.Hash().B58String()))
+	bs.log.Debug("has block", zap.Stringer("cid", c))
 	return bs.store.HasBlock(ctx, c)
 }
 
@@ -50,7 +50,7 @@ func (bs *RenterdBlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, 
 		return nil, fmt.Errorf("failed to get cid: %w", err)
 	}
 
-	bs.log.Debug("get block", zap.String("cid", c.Hash().B58String()), zap.Uint64("blockSize", cm.Data.BlockSize), zap.Uint64("blockOffset", cm.Data.Offset), zap.Uint64("metadataSize", cm.Metadata.Length), zap.Uint64("metadataOffset", cm.Metadata.Offset))
+	bs.log.Debug("get block", zap.Stringer("cid", c), zap.Uint64("blockSize", cm.Data.BlockSize), zap.Uint64("blockOffset", cm.Data.Offset), zap.Uint64("metadataSize", cm.Metadata.Length), zap.Uint64("metadataOffset", cm.Metadata.Offset))
 
 	errCh := make(chan error, 2)
 	defer close(errCh)
@@ -123,7 +123,7 @@ func (bs *RenterdBlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, 
 		})
 	}
 	if actual := node.Cid(); !actual.Equals(c) {
-		panic(fmt.Errorf("unexpected cid: requested %q got %q", c.Hash().B58String(), actual.Hash().B58String())) // developer error
+		panic(fmt.Errorf("unexpected cid: requested %q got %q", c.String(), actual.String())) // developer error
 	}
 	return node, nil
 }
@@ -136,7 +136,7 @@ func (bs *RenterdBlockStore) GetSize(ctx context.Context, c cid.Cid) (int, error
 	} else if err != nil {
 		return 0, fmt.Errorf("failed to get cid: %w", err)
 	}
-	bs.log.Debug("get block size", zap.String("cid", c.Hash().B58String()), zap.Uint64("size", cm.Data.BlockSize))
+	bs.log.Debug("get block size", zap.Stringer("cid", c), zap.Uint64("size", cm.Data.BlockSize))
 	return int(cm.Data.BlockSize + cm.Metadata.Length), nil
 }
 

@@ -96,7 +96,7 @@ func (ufs *UnixFileUploader) Add(ctx context.Context, node format.Node) error {
 	dataOffset := ufs.dataOffset + dataSize - fileSize
 
 	ufs.log.Debug("adding node",
-		zap.String("cid", node.Cid().Hash().B58String()),
+		zap.Stringer("cid", node.Cid()),
 		zap.Uint64("filesize", fileSize),
 		zap.Uint64("dataOffset", dataOffset),
 		zap.Uint64("metaOffset", ufs.metaOffset),

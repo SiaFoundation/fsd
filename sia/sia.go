@@ -50,16 +50,16 @@ var ErrNotFound = errors.New("not found")
 
 // UploadCID uploads a CID to the renterd node
 func (n *Node) UploadCID(ctx context.Context, c cid.Cid, r io.Reader) error {
-	log := n.log.Named("upload").With(zap.String("cid", c.Hash().B58String()), zap.String("bucket", n.renterd.Bucket))
+	log := n.log.Named("upload").With(zap.Stringer("cid", c), zap.String("bucket", n.renterd.Bucket))
 
-	dataKey := c.Hash().B58String()
+	dataKey := c.String()
 	metaKey := dataKey + ".meta"
 
 	metaR, metaW := io.Pipe()
 	dataR, dataW := io.Pipe()
 
 	client := worker.NewClient(n.renterd.Address, n.renterd.Password)
-	dagSvc := NewUnixFileUploader(c.Hash().B58String(), dataW, metaW, log)
+	dagSvc := NewUnixFileUploader(c.String(), dataW, metaW, log)
 
 	errCh := make(chan error, 2)
 
@@ -115,8 +115,8 @@ func (n *Node) UploadCID(ctx context.Context, c cid.Cid, r io.Reader) error {
 
 	blocks := dagSvc.Blocks()
 
-	if rootNode.Cid().Hash().B58String() != c.Hash().B58String() {
-		return fmt.Errorf("unexpected root cid: %s", rootNode.Cid().Hash().B58String())
+	if !rootNode.Cid().Equals(c) {
+		return fmt.Errorf("unexpected root cid: %s", rootNode.Cid().String())
 	} else if err := n.store.AddBlocks(ctx, blocks); err != nil {
 		return fmt.Errorf("failed to add blocks to store: %w", err)
 	}
@@ -154,7 +154,7 @@ func (n *Node) ProxyHTTPDownload(cid cid.Cid, r *http.Request, w http.ResponseWr
 		return errors.New("cannot proxy partial downloads")
 	}
 
-	target, err := url.Parse(n.renterd.Address + "/objects/" + cid.Hash().B58String())
+	target, err := url.Parse(n.renterd.Address + "/objects/" + cid.String())
 	if err != nil {
 		panic(err)
 	}
@@ -207,8 +207,8 @@ func (n *Node) VerifyCID(ctx context.Context, c cid.Cid) error {
 	block, err := rbs.Get(ctx, c)
 	if err != nil {
 		return fmt.Errorf("failed to get block: %w", err)
-	} else if block.Cid().Hash().B58String() != c.Hash().B58String() {
-		return fmt.Errorf("unexpected root cid: %s", block.Cid().Hash().B58String())
+	} else if block.Cid().String() != c.String() {
+		return fmt.Errorf("unexpected root cid: %s", block.Cid().String())
 	}
 	return nil
 }

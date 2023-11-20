@@ -45,12 +45,12 @@ func (is *ipfsGatewayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	is.log.Info("serving", zap.String("cid", cid.Hash().B58String()), zap.String("path", r.URL.Path))
+	is.log.Info("serving", zap.Stringer("cid", cid), zap.String("path", r.URL.Path))
 
 	// TODO: support paths in Sia proxied downloads
 	err = is.sia.ProxyHTTPDownload(cid, r, w)
 	if errors.Is(err, sia.ErrNotFound) && is.config.IPFS.FetchRemote {
-		is.log.Info("downloading from ipfs", zap.String("cid", cid.Hash().B58String()))
+		is.log.Info("downloading from ipfs", zap.Stringer("cid", cid))
 		r, err := is.ipfs.DownloadCID(ctx, cid, path)
 		if err != nil {
 			http.Error(w, "", http.StatusInternalServerError)
