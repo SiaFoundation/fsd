@@ -129,9 +129,25 @@ func (n *Node) UploadCID(ctx context.Context, c cid.Cid, r io.Reader) error {
 	return nil
 }
 
+func (n *Node) getBlock(ctx context.Context, c cid.Cid) (Block, error) {
+	block, err := n.store.GetBlock(ctx, c)
+	if errors.Is(err, ErrNotFound) {
+		switch c.Version() { // check if we can find the block by converting the cid version
+		case 0:
+			v1Cid := cid.NewCidV1(c.Type(), c.Hash())
+			return n.store.GetBlock(ctx, v1Cid)
+		case 1:
+			v0Cid := cid.NewCidV0(c.Hash())
+			return n.store.GetBlock(ctx, v0Cid)
+		}
+		return Block{}, ErrNotFound
+	}
+	return block, err
+}
+
 // ProxyHTTPDownload proxies an http download request to the renterd node
 func (n *Node) ProxyHTTPDownload(cid cid.Cid, r *http.Request, w http.ResponseWriter) error {
-	block, err := n.store.GetBlock(r.Context(), cid)
+	block, err := n.getBlock(r.Context(), cid)
 	if err != nil {
 		return err
 	} else if block.Data.Offset != 0 {

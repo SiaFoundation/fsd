@@ -36,7 +36,7 @@ func (is *ipfsGatewayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		hostParts := strings.Split(r.Host, ".") // try to parse the subdomain as a CID
 		cidStr = hostParts[0]
-		path = strings.Split(r.URL.Path, "/")
+		path = strings.Split(r.URL.Path, "/")[1:]
 	}
 
 	cid, err := cid.Parse(cidStr)
