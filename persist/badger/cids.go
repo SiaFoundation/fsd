@@ -69,10 +69,9 @@ func (s *Store) AllKeysChan(ctx context.Context) (<-chan cid.Cid, error) {
 			defer it.Close()
 
 			for it.Rewind(); it.Valid(); it.Next() {
-				key := string(it.Item().Key())
-				cid, err := cid.Parse(key)
+				cid, err := cid.Parse(it.Item().Key())
 				if err != nil {
-					log.Error("failed to parse cid", zap.String("key", key))
+					log.Error("failed to parse cid", zap.Error(err))
 					continue
 				}
 				select {
