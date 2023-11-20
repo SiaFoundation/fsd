@@ -46,13 +46,14 @@ func (bs *RenterdBlockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 
 // Get returns a block by CID
 func (bs *RenterdBlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
-	bs.log.Debug("get block", zap.String("cid", c.Hash().B58String()))
 	cm, err := bs.store.GetBlock(ctx, c)
 	if errors.Is(err, ErrNotFound) {
 		return nil, format.ErrNotFound{Cid: c}
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to get cid: %w", err)
 	}
+
+	bs.log.Debug("get block", zap.String("cid", c.Hash().B58String()), zap.Uint64("blockSize", cm.Data.BlockSize), zap.Uint64("blockOffset", cm.Data.Offset), zap.Uint64("metadataSize", cm.Metadata.Length), zap.Uint64("metadataOffset", cm.Metadata.Offset))
 
 	errCh := make(chan error, 2)
 	defer close(errCh)
