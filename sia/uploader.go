@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/ipfs/boxo/ipld/merkledag"
 	"github.com/ipfs/boxo/ipld/unixfs"
 	pb "github.com/ipfs/boxo/ipld/unixfs/pb"
 	"github.com/ipfs/go-cid"
@@ -17,6 +18,7 @@ import (
 type UnixFileUploader struct {
 	dataOffset uint64
 	metaOffset uint64
+	fileSize   uint64
 
 	key string
 
@@ -40,83 +42,105 @@ func (ufs *UnixFileUploader) GetMany(ctx context.Context, c []cid.Cid) <-chan *f
 	panic("not implemented")
 }
 
-// Add adds a node to this DAG.
-func (ufs *UnixFileUploader) Add(ctx context.Context, node format.Node) error {
+func (ufs *UnixFileUploader) uploadProtoNode(ctx context.Context, node *merkledag.ProtoNode) (data, metadata []byte, _ error) {
 	fsNode, err := unixfs.ExtractFSNode(node)
 	if err != nil {
-		return fmt.Errorf("failed to extract fs node: %w", err)
+		return nil, nil, fmt.Errorf("failed to extract fs node: %w", err)
 	}
 
 	switch fsNode.Type() {
 	case unixfs.TFile:
-		dataSize := uint64(len(fsNode.Data()))
-		fileSize := fsNode.FileSize()
-		dataOffset := ufs.dataOffset + dataSize - fileSize
-
-		ufs.log.Debug("adding node",
-			zap.String("cid", node.Cid().Hash().B58String()),
-			zap.Stringer("type", fsNode.Type()),
-			zap.Uint64("filesize", fileSize),
-			zap.Uint64("dataOffset", dataOffset),
-			zap.Uint64("metaOffset", ufs.metaOffset),
-			zap.Uint64("datasize", dataSize),
-			zap.Int("links", len(node.Links())))
-
-		var links []Link
-		for _, link := range node.Links() {
-			links = append(links, Link{
-				CID:  link.Cid,
-				Name: link.Name,
-				Size: link.Size,
-			})
-		}
+		data = fsNode.Data()
 
 		buf, err := fsNode.GetBytes()
 		if err != nil {
-			return fmt.Errorf("failed to get bytes: %w", err)
+			return nil, nil, fmt.Errorf("failed to get bytes: %w", err)
 		}
 
 		var meta pb.Data
 		if err := proto.Unmarshal(buf, &meta); err != nil {
-			return fmt.Errorf("failed to unmarshal metadata: %w", err)
+			return nil, nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
 		}
 		meta.Data = nil
-		metaBytes, err := proto.Marshal(&meta)
+		metadata, err = proto.Marshal(&meta)
 		if err != nil {
-			return fmt.Errorf("failed to marshal metadata: %w", err)
+			return nil, nil, fmt.Errorf("failed to marshal metadata: %w", err)
 		}
-
-		metaLen, err := ufs.metadata.Write(metaBytes)
-		if err != nil {
-			return fmt.Errorf("failed to write metadata: %w", err)
-		}
-
-		_, err = ufs.data.Write(fsNode.Data())
-		if err != nil {
-			return fmt.Errorf("failed to write data: %w", err)
-		}
-
-		block := Block{
-			CID:   node.Cid(),
-			Links: links,
-			Data: RenterdData{
-				Key:       ufs.key,
-				Offset:    dataOffset,
-				FileSize:  fileSize,
-				BlockSize: dataSize,
-			},
-			Metadata: RenterdMeta{
-				Key:    ufs.key + ".meta",
-				Offset: ufs.metaOffset,
-				Length: uint64(metaLen),
-			},
-		}
-		ufs.dataOffset += dataSize
-		ufs.metaOffset += block.Metadata.Length
-		ufs.blocks = append(ufs.blocks, block)
-	default:
-		return fmt.Errorf("unsupported node type: %v", fsNode.Type())
 	}
+	return
+}
+
+func (ufs *UnixFileUploader) uploadRawNode(ctx context.Context, node *merkledag.RawNode) (data, metadata []byte, _ error) {
+	return node.RawData(), nil, nil
+}
+
+// Add adds a node to this DAG.
+func (ufs *UnixFileUploader) Add(ctx context.Context, node format.Node) error {
+	var data, metadata []byte
+	var err error
+	switch node := node.(type) {
+	case *merkledag.ProtoNode:
+		data, metadata, err = ufs.uploadProtoNode(ctx, node)
+	case *merkledag.RawNode:
+		data, metadata, err = ufs.uploadRawNode(ctx, node)
+	default:
+		return fmt.Errorf("unsupported node type: %T", node)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	dataSize := uint64(len(data))
+	fileSize := ufs.fileSize + dataSize
+	dataOffset := ufs.dataOffset + dataSize - fileSize
+
+	ufs.log.Debug("adding node",
+		zap.String("cid", node.Cid().Hash().B58String()),
+		zap.Uint64("filesize", fileSize),
+		zap.Uint64("dataOffset", dataOffset),
+		zap.Uint64("metaOffset", ufs.metaOffset),
+		zap.Uint64("datasize", dataSize),
+		zap.Int("links", len(node.Links())))
+
+	metaLen, err := ufs.metadata.Write(metadata)
+	if err != nil {
+		return fmt.Errorf("failed to write metadata: %w", err)
+	}
+
+	_, err = ufs.data.Write(data)
+	if err != nil {
+		return fmt.Errorf("failed to write data: %w", err)
+	}
+
+	var links []Link
+	for _, link := range node.Links() {
+		links = append(links, Link{
+			CID:  link.Cid,
+			Name: link.Name,
+			Size: link.Size,
+		})
+	}
+
+	block := Block{
+		CID:   node.Cid(),
+		Links: links,
+		Data: RenterdData{
+			Key:       ufs.key,
+			Offset:    dataOffset,
+			FileSize:  fileSize,
+			BlockSize: dataSize,
+		},
+		Metadata: RenterdMeta{
+			Key:    ufs.key + ".meta",
+			Offset: ufs.metaOffset,
+			Length: uint64(metaLen),
+		},
+	}
+	ufs.dataOffset += dataSize
+	ufs.fileSize += dataSize
+	ufs.metaOffset += block.Metadata.Length
+	ufs.blocks = append(ufs.blocks, block)
 	return nil
 }
 
