@@ -2,6 +2,7 @@ package http
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -10,7 +11,6 @@ import (
 	"go.sia.tech/fsd/config"
 	"go.sia.tech/fsd/ipfs"
 	"go.sia.tech/fsd/sia"
-	"go.sia.tech/jape"
 	"go.uber.org/zap"
 )
 
@@ -22,65 +22,57 @@ type ipfsGatewayServer struct {
 	config config.Config
 }
 
-func (is *ipfsGatewayServer) handleIPFS(jc jape.Context) {
-	ctx := jc.Request.Context()
-
-	var pathStr string
-	if err := jc.DecodeParam("path", &pathStr); err != nil {
-		return
-	}
+func (is *ipfsGatewayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 
 	var cidStr string
-	is.log.Debug("downloading file", zap.String("path", pathStr))
-	pathStr = strings.TrimPrefix(pathStr, "/") // remove leading slash
-	path := strings.Split(pathStr, "/")
-	if len(path) == 0 || path[0] == "" {
-		jc.Error(errors.New("bad path"), http.StatusBadRequest)
-		return
-	} else if len(path) == 1 {
-		cidStr = path[0]
+	var path []string
+
+	is.log.Debug("request", zap.String("host", r.Host), zap.String("path", r.URL.Path))
+
+	if strings.HasPrefix(r.URL.Path, "/ipfs/") {
+		path = strings.Split(r.URL.Path, "/")
+		cidStr, path = path[2], path[3:]
 	} else {
-		cidStr = path[0]
-		path = path[1:]
+		hostParts := strings.Split(r.Host, ".") // try to parse the subdomain as a CID
+		cidStr = hostParts[0]
+		path = strings.Split(r.URL.Path, "/")
 	}
 
 	cid, err := cid.Parse(cidStr)
 	if err != nil {
-		jc.Error(err, http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("failed to parse cid %q", cidStr), http.StatusBadRequest)
 		return
 	}
 
-	err = is.sia.ProxyHTTPDownload(cid, jc.Request, jc.ResponseWriter)
+	is.log.Info("serving", zap.String("cid", cid.Hash().B58String()), zap.String("path", r.URL.Path))
+
+	// TODO: support paths in Sia proxied downloads
+	err = is.sia.ProxyHTTPDownload(cid, r, w)
 	if errors.Is(err, sia.ErrNotFound) && is.config.IPFS.FetchRemote {
 		is.log.Info("downloading from ipfs", zap.String("cid", cid.Hash().B58String()))
 		r, err := is.ipfs.DownloadCID(ctx, cid, path)
 		if err != nil {
-			jc.Error(err, http.StatusInternalServerError)
+			http.Error(w, "", http.StatusInternalServerError)
 			is.log.Error("failed to download cid", zap.Error(err))
 			return
 		}
 		defer r.Close()
 
-		io.Copy(jc.ResponseWriter, r)
-		return
+		io.Copy(w, r)
 	} else if err != nil {
-		jc.Error(err, http.StatusInternalServerError)
+		http.Error(w, "", http.StatusInternalServerError)
 		is.log.Error("failed to get block", zap.Error(err))
-		return
 	}
 }
 
 // NewIPFSGatewayHandler creates a new http.Handler for the IPFS gateway.
 func NewIPFSGatewayHandler(ipfs *ipfs.Node, sia *sia.Node, cfg config.Config, log *zap.Logger) http.Handler {
-	s := &ipfsGatewayServer{
+	return &ipfsGatewayServer{
 		ipfs: ipfs,
 		sia:  sia,
 		log:  log,
 
 		config: cfg,
 	}
-
-	return jape.Mux(map[string]jape.Handler{
-		"GET /ipfs/*path": s.handleIPFS,
-	})
 }
