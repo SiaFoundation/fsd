@@ -7,6 +7,7 @@ import (
 	"github.com/dgraph-io/badger/v4"
 	"github.com/ipfs/go-cid"
 	"go.sia.tech/fsd/sia"
+	"go.uber.org/zap"
 )
 
 // HasBlock returns true if the CID is in the store
@@ -62,15 +63,22 @@ func (s *Store) AllKeysChan(ctx context.Context) (<-chan cid.Cid, error) {
 	ch := make(chan cid.Cid)
 
 	go func() {
+		log := s.log.Named("allKeysChan")
 		_ = s.db.View(func(txn *badger.Txn) error {
 			it := txn.NewIterator(badger.IteratorOptions{})
 			defer it.Close()
 
 			for it.Rewind(); it.Valid(); it.Next() {
+				key := string(it.Item().Key())
+				cid, err := cid.Parse(key)
+				if err != nil {
+					log.Error("failed to parse cid", zap.String("key", key))
+					continue
+				}
 				select {
 				case <-ctx.Done():
 					return ctx.Err()
-				case ch <- cid.MustParse(string(it.Item().Key())):
+				case ch <- cid:
 				}
 			}
 			return nil
