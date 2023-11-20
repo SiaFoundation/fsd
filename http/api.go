@@ -84,7 +84,7 @@ func (as *apiServer) handleUpload(jc jape.Context) {
 	}
 
 	// the root cid is the first block
-	jc.Encode(cid.Hash().B58String())
+	jc.Encode(cid.String())
 }
 
 func (as *apiServer) handleVerifyCID(jc jape.Context) {

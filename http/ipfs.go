@@ -2,9 +2,9 @@ package http
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/ipfs/go-cid"
@@ -22,36 +22,84 @@ type ipfsGatewayServer struct {
 	config config.Config
 }
 
+func getURLCID(r *http.Request) (c cid.Cid, path []string, redirect bool, _ error) {
+	host := r.Host
+	if str := r.Header.Get("X-Forwarded-Host"); str != "" {
+		host = str
+	}
+
+	// try to parse the subdomain as a CID
+	hostParts := strings.Split(host, ".")
+	cidStr := hostParts[0]
+	if cid, err := cid.Parse(cidStr); err == nil {
+		return cid, strings.Split(r.URL.Path, "/")[1:], false, nil
+	}
+
+	// check if the path contains a CID
+	if strings.HasPrefix(r.URL.Path, "/ipfs/") || strings.HasPrefix(r.URL.Path, "/ipns/") {
+		pathPart := strings.Split(r.URL.Path, "/")
+		cidStr, path = pathPart[2], pathPart[3:]
+
+		if c, err := cid.Parse(cidStr); err == nil {
+			return c, path, true, nil
+		}
+	}
+	return cid.Undef, nil, false, errors.New("no cid found")
+}
+
+func redirectPathCID(w http.ResponseWriter, r *http.Request, c cid.Cid, path []string, log *zap.Logger) {
+	host := r.Host
+	if str := r.Header.Get("X-Forwarded-Host"); str != "" {
+		host = str
+	}
+	scheme := "http://"
+	if str := r.Header.Get("X-Forwarded-Proto"); str != "" {
+		scheme = str + "://"
+	}
+
+	ustr := scheme + c.String() + "." + host
+	u, err := url.Parse(ustr)
+	if err != nil {
+		http.Error(w, "", http.StatusInternalServerError)
+		log.Error("failed to parse url", zap.Error(err), zap.String("url", ustr))
+		return
+	}
+	log.Debug("path", zap.Strings("path", path))
+	u.RawPath = ""
+	u.Path = "/" + strings.Join(path, "/")
+	u.RawQuery = r.URL.RawQuery
+
+	log.Debug("redirecting", zap.Stringer("cid", c), zap.String("url", u.String()), zap.String("path", u.Path))
+	http.Redirect(w, r, u.String(), http.StatusMovedPermanently)
+}
+
 func (is *ipfsGatewayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	var cidStr string
-	var path []string
-
-	is.log.Debug("request", zap.String("host", r.Host), zap.String("path", r.URL.Path))
-
-	if strings.HasPrefix(r.URL.Path, "/ipfs/") {
-		path = strings.Split(r.URL.Path, "/")
-		cidStr, path = path[2], path[3:]
-	} else {
-		hostParts := strings.Split(r.Host, ".") // try to parse the subdomain as a CID
-		cidStr = hostParts[0]
-		path = strings.Split(r.URL.Path, "/")[1:]
-	}
-
-	cid, err := cid.Parse(cidStr)
+	c, path, redirect, err := getURLCID(r)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to parse cid %q", cidStr), http.StatusBadRequest)
+		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
 
-	is.log.Info("serving", zap.Stringer("cid", cid), zap.String("path", r.URL.Path))
+	// redirect v0 to v1
+	if c.Version() == 0 {
+		c = cid.NewCidV1(c.Type(), c.Hash())
+		redirect = true
+	}
+
+	if redirect {
+		redirectPathCID(w, r, c, path, is.log.Named("redirect"))
+		return
+	}
+
+	is.log.Info("serving", zap.Stringer("cid", c), zap.String("path", r.URL.Path))
 
 	// TODO: support paths in Sia proxied downloads
-	err = is.sia.ProxyHTTPDownload(cid, r, w)
+	err = is.sia.ProxyHTTPDownload(c, r, w)
 	if errors.Is(err, sia.ErrNotFound) && is.config.IPFS.FetchRemote {
-		is.log.Info("downloading from ipfs", zap.Stringer("cid", cid))
-		r, err := is.ipfs.DownloadCID(ctx, cid, path)
+		is.log.Info("downloading from ipfs", zap.Stringer("cid", c))
+		r, err := is.ipfs.DownloadCID(ctx, c, path)
 		if err != nil {
 			http.Error(w, "", http.StatusInternalServerError)
 			is.log.Error("failed to download cid", zap.Error(err))
