@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"sync"
 
 	"github.com/gogo/protobuf/proto"
@@ -15,6 +14,8 @@ import (
 	"github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
 	"go.sia.tech/fsd/config"
+	"go.sia.tech/renterd/api"
+	"go.sia.tech/renterd/worker"
 	"go.uber.org/zap"
 )
 
@@ -56,7 +57,9 @@ func (bs *RenterdBlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, 
 	errCh := make(chan error, 2)
 	defer close(errCh)
 
-	var metaBuf, dataBuf bytes.Buffer
+	metaBuf, dataBuf := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
+
+	worker := worker.NewClient(bs.renterd.Address, bs.renterd.Password)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -67,15 +70,14 @@ func (bs *RenterdBlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, 
 			return
 		}
 
-		r, err := downloadObject(ctx, bs.renterd, cm.Data.Key, cm.Data.Offset, cm.Data.BlockSize)
+		err := worker.DownloadObject(ctx, dataBuf, bs.renterd.Bucket, cm.Data.Key, api.DownloadObjectOptions{
+			Range: api.DownloadRange{
+				Offset: int64(cm.Data.Offset),
+				Length: int64(cm.Data.BlockSize),
+			},
+		})
 		if err != nil {
 			errCh <- fmt.Errorf("failed to download object: %w", err)
-			return
-		}
-		defer r.Close()
-
-		if _, err := io.Copy(&dataBuf, r); err != nil {
-			errCh <- fmt.Errorf("failed to copy object: %w", err)
 			return
 		}
 	}()
@@ -87,15 +89,14 @@ func (bs *RenterdBlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, 
 			return
 		}
 
-		r, err := downloadObject(ctx, bs.renterd, cm.Metadata.Key, cm.Metadata.Offset, cm.Metadata.Length)
+		err := worker.DownloadObject(ctx, dataBuf, bs.renterd.Bucket, cm.Data.Key, api.DownloadObjectOptions{
+			Range: api.DownloadRange{
+				Offset: int64(cm.Metadata.Offset),
+				Length: int64(cm.Metadata.Length),
+			},
+		})
 		if err != nil {
 			errCh <- fmt.Errorf("failed to download object: %w", err)
-			return
-		}
-		defer r.Close()
-
-		if _, err := io.Copy(&metaBuf, r); err != nil {
-			errCh <- fmt.Errorf("failed to copy object: %w", err)
 			return
 		}
 	}()
