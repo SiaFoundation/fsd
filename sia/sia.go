@@ -184,6 +184,19 @@ func (n *Node) CalculateBlocks(ctx context.Context, r io.Reader) ([]Block, error
 	return dagSvc.Blocks(), nil
 }
 
+// VerifyCID verifies that a CID is correctly stored in the renterd node
+func (n *Node) VerifyCID(ctx context.Context, c cid.Cid) error {
+	rbs := NewBlockStore(n.store, n.renterd, n.log.Named("verify"))
+
+	block, err := rbs.Get(ctx, c)
+	if err != nil {
+		return fmt.Errorf("failed to get block: %w", err)
+	} else if block.Cid().Hash().B58String() != c.Hash().B58String() {
+		return fmt.Errorf("unexpected root cid: %s", block.Cid().Hash().B58String())
+	}
+	return nil
+}
+
 // New creates a new Sia IPFS store
 func New(store Store, ipfs IPFSProvider, cfg config.Renterd, log *zap.Logger) *Node {
 	return &Node{

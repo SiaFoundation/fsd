@@ -1,7 +1,6 @@
 package sia
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -14,8 +13,6 @@ import (
 	"github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
 	"go.sia.tech/fsd/config"
-	"go.sia.tech/renterd/api"
-	"go.sia.tech/renterd/worker"
 	"go.uber.org/zap"
 )
 
@@ -58,10 +55,7 @@ func (bs *RenterdBlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, 
 	errCh := make(chan error, 2)
 	defer close(errCh)
 
-	metaBuf, dataBuf := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
-
-	worker := worker.NewClient(bs.renterd.Address, bs.renterd.Password)
-
+	var data, metadata []byte
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
@@ -71,14 +65,9 @@ func (bs *RenterdBlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, 
 			return
 		}
 
-		err := worker.DownloadObject(ctx, dataBuf, bs.renterd.Bucket, cm.Data.Key, api.DownloadObjectOptions{
-			Range: api.DownloadRange{
-				Offset: int64(cm.Data.Offset),
-				Length: int64(cm.Data.BlockSize),
-			},
-		})
+		data, err = downloadPartialData(bs.renterd, cm.Data.Key, cm.Data.Offset, cm.Data.BlockSize)
 		if err != nil {
-			errCh <- fmt.Errorf("failed to download object: %w", err)
+			errCh <- fmt.Errorf("failed to download data: %w", err)
 			return
 		}
 	}()
@@ -90,12 +79,7 @@ func (bs *RenterdBlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, 
 			return
 		}
 
-		err := worker.DownloadObject(ctx, dataBuf, bs.renterd.Bucket, cm.Data.Key, api.DownloadObjectOptions{
-			Range: api.DownloadRange{
-				Offset: int64(cm.Metadata.Offset),
-				Length: int64(cm.Metadata.Length),
-			},
-		})
+		metadata, err = downloadPartialData(bs.renterd, cm.Metadata.Key, cm.Metadata.Offset, cm.Metadata.Length)
 		if err != nil {
 			errCh <- fmt.Errorf("failed to download object: %w", err)
 			return
@@ -109,11 +93,21 @@ func (bs *RenterdBlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, 
 	default:
 	}
 
+	if n := len(data); n != int(cm.Data.BlockSize) {
+		return nil, fmt.Errorf("unexpected data size: requested %d got %d", cm.Data.BlockSize, n)
+	} else if n := len(metadata); n != int(cm.Metadata.Length) {
+		return nil, fmt.Errorf("unexpected metadata size: requested %d got %d", cm.Metadata.Length, n)
+	}
+
 	var meta pb.Data
-	if err := proto.Unmarshal(metaBuf.Bytes(), &meta); err != nil {
+	if err := proto.Unmarshal(metadata, &meta); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
 	}
-	meta.Data = dataBuf.Bytes()
+
+	// note: non-nil block data encodes to 2 bytes
+	if cm.Data.BlockSize != 0 {
+		meta.Data = data
+	}
 
 	buf, err := proto.Marshal(&meta)
 	if err != nil {

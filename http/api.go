@@ -87,6 +87,24 @@ func (as *apiServer) handleUpload(jc jape.Context) {
 	jc.Encode(cid.Hash().B58String())
 }
 
+func (as *apiServer) handleVerifyCID(jc jape.Context) {
+	ctx := jc.Request.Context()
+	var cidStr string
+	if err := jc.DecodeParam("cid", &cidStr); err != nil {
+		return
+	}
+	cid, err := cid.Parse(cidStr)
+	if err != nil {
+		jc.Error(err, http.StatusBadRequest)
+		return
+	}
+
+	if err := as.sia.VerifyCID(ctx, cid); err != nil {
+		jc.Error(err, http.StatusInternalServerError)
+		return
+	}
+}
+
 // NewAPIHandler returns a new http.Handler that handles requests to the api
 func NewAPIHandler(ipfs *ipfs.Node, sia *sia.Node, cfg config.Config, log *zap.Logger) http.Handler {
 	s := &apiServer{
@@ -98,8 +116,9 @@ func NewAPIHandler(ipfs *ipfs.Node, sia *sia.Node, cfg config.Config, log *zap.L
 		log:  log,
 	}
 	return jape.Mux(map[string]jape.Handler{
-		"POST /api/cid/calculate": s.handleCalculate,
-		"POST /api/upload/:cid":   s.handleUpload,
-		"POST /api/pin/:cid":      s.handlePin,
+		"POST /api/cid/calculate":   s.handleCalculate,
+		"POST /api/cid/verify/:cid": s.handleVerifyCID,
+		"POST /api/upload/:cid":     s.handleUpload,
+		"POST /api/pin/:cid":        s.handlePin,
 	})
 }
