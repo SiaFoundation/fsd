@@ -66,6 +66,8 @@ func (ufs *UnixFileUploader) uploadProtoNode(ctx context.Context, node *merkleda
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to marshal metadata: %w", err)
 		}
+	default:
+		return nil, nil, fmt.Errorf("unsupported unixfs node type: %T", fsNode)
 	}
 	return
 }
