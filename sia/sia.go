@@ -45,6 +45,7 @@ type (
 		renterd config.Renterd
 	}
 
+	// CIDOptions holds configuration options for CID uploads
 	CIDOptions struct {
 		CIDBuilder cid.Builder
 		RawLeaves  bool
