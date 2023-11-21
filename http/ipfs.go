@@ -28,14 +28,18 @@ func getURLCID(r *http.Request) (c cid.Cid, path []string, redirect bool, _ erro
 		host = str
 	}
 
+	path = strings.Split(strings.TrimSpace(strings.Trim(r.URL.Path, "/")), "/")
+	if path[0] == "" {
+		path = nil
+	}
+
 	// try to parse the subdomain as a CID
 	hostParts := strings.Split(host, ".")
 	cidStr := hostParts[0]
 	if cid, err := cid.Parse(cidStr); err == nil {
-		return cid, strings.Split(r.URL.Path, "/")[1:], false, nil
+		return cid, path, false, nil
 	}
 
-	path = strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 	// check if the path contains a CID
 	if len(path) >= 2 && path[0] == "ipfs" || path[0] == "ipns" {
 		cidStr, path = path[1], path[2:]
@@ -64,7 +68,6 @@ func redirectPathCID(w http.ResponseWriter, r *http.Request, c cid.Cid, path []s
 		log.Error("failed to parse url", zap.Error(err), zap.String("url", ustr))
 		return
 	}
-	log.Debug("path", zap.Strings("path", path))
 	u.RawPath = ""
 	u.Path = "/" + strings.Join(path, "/")
 	u.RawQuery = r.URL.RawQuery
@@ -109,12 +112,12 @@ func (is *ipfsGatewayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	is.log.Info("serving", zap.Stringer("cid", c), zap.String("path", r.URL.Path))
+	is.log.Info("serving", zap.Stringer("cid", c), zap.Strings("path", path))
 
 	// TODO: support paths in Sia proxied downloads
 	err = is.sia.ProxyHTTPDownload(c, r, w)
 	if errors.Is(err, sia.ErrNotFound) && is.allowRemoteFetch(c) {
-		is.log.Info("downloading from ipfs", zap.Stringer("cid", c))
+		is.log.Info("downloading from ipfs", zap.Stringer("cid", c), zap.Strings("path", path))
 		r, err := is.ipfs.DownloadCID(ctx, c, path)
 		if err != nil {
 			http.Error(w, "", http.StatusNotFound)
