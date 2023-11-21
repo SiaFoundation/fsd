@@ -35,10 +35,10 @@ func getURLCID(r *http.Request) (c cid.Cid, path []string, redirect bool, _ erro
 		return cid, strings.Split(r.URL.Path, "/")[1:], false, nil
 	}
 
+	path = strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 	// check if the path contains a CID
-	if strings.HasPrefix(r.URL.Path, "/ipfs/") || strings.HasPrefix(r.URL.Path, "/ipns/") {
-		pathPart := strings.Split(r.URL.Path, "/")
-		cidStr, path = pathPart[2], pathPart[3:]
+	if len(path) >= 2 && path[0] == "ipfs" || path[0] == "ipns" {
+		cidStr, path = path[1], path[2:]
 
 		if c, err := cid.Parse(cidStr); err == nil {
 			return c, path, true, nil
@@ -73,6 +73,22 @@ func redirectPathCID(w http.ResponseWriter, r *http.Request, c cid.Cid, path []s
 	http.Redirect(w, r, u.String(), http.StatusMovedPermanently)
 }
 
+func (is *ipfsGatewayServer) allowRemoteFetch(c cid.Cid) bool {
+	if !is.config.IPFS.Gateway.Fetch.Enabled {
+		return false // deny all
+	} else if len(is.config.IPFS.Gateway.Fetch.AllowList) == 0 {
+		return true // allow all
+	}
+
+	// allowlist check
+	for _, match := range is.config.IPFS.Gateway.Fetch.AllowList {
+		if c.Equals(match) {
+			return true
+		}
+	}
+	return false
+}
+
 func (is *ipfsGatewayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -97,17 +113,19 @@ func (is *ipfsGatewayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: support paths in Sia proxied downloads
 	err = is.sia.ProxyHTTPDownload(c, r, w)
-	if errors.Is(err, sia.ErrNotFound) && is.config.IPFS.FetchRemote {
+	if errors.Is(err, sia.ErrNotFound) && is.allowRemoteFetch(c) {
 		is.log.Info("downloading from ipfs", zap.Stringer("cid", c))
 		r, err := is.ipfs.DownloadCID(ctx, c, path)
 		if err != nil {
-			http.Error(w, "", http.StatusInternalServerError)
+			http.Error(w, "", http.StatusNotFound)
 			is.log.Error("failed to download cid", zap.Error(err))
 			return
 		}
 		defer r.Close()
 
 		io.Copy(w, r)
+	} else if errors.Is(err, sia.ErrNotFound) {
+		http.Error(w, "", http.StatusNotFound)
 	} else if err != nil {
 		http.Error(w, "", http.StatusInternalServerError)
 		is.log.Error("failed to get block", zap.Error(err))
