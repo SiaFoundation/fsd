@@ -74,14 +74,14 @@ func redirectPathCID(w http.ResponseWriter, r *http.Request, c cid.Cid, path []s
 }
 
 func (is *ipfsGatewayServer) allowRemoteFetch(c cid.Cid) bool {
-	if !is.config.IPFS.Fetch.AllowRemote {
+	if !is.config.IPFS.Gateway.Fetch.Enabled {
 		return false // deny all
-	} else if len(is.config.IPFS.Fetch.AllowList) == 0 {
+	} else if len(is.config.IPFS.Gateway.Fetch.AllowList) == 0 {
 		return true // allow all
 	}
 
 	// allowlist check
-	for _, match := range is.config.IPFS.Fetch.AllowList {
+	for _, match := range is.config.IPFS.Gateway.Fetch.AllowList {
 		if c.Equals(match) {
 			return true
 		}
@@ -117,13 +117,15 @@ func (is *ipfsGatewayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		is.log.Info("downloading from ipfs", zap.Stringer("cid", c))
 		r, err := is.ipfs.DownloadCID(ctx, c, path)
 		if err != nil {
-			http.Error(w, "", http.StatusInternalServerError)
+			http.Error(w, "", http.StatusNotFound)
 			is.log.Error("failed to download cid", zap.Error(err))
 			return
 		}
 		defer r.Close()
 
 		io.Copy(w, r)
+	} else if errors.Is(err, sia.ErrNotFound) {
+		http.Error(w, "", http.StatusNotFound)
 	} else if err != nil {
 		http.Error(w, "", http.StatusInternalServerError)
 		is.log.Error("failed to get block", zap.Error(err))

@@ -10,15 +10,22 @@ type (
 		Bucket   string `yaml:"bucket"`
 	}
 
-	// HTTPGateway contains the configuration for the IPFS HTTP gateway
-	HTTPGateway struct {
-		ListenAddress     string `yaml:"ListenAddress"`
-		RedirectPathStyle bool   `yaml:"redirectPathStyle"`
+	// RemoteFetch contains settings for enabling/disabling remote IPFS block
+	// fetching.
+	RemoteFetch struct {
+		// Enabled indicates whether remote IPFS block fetching is enabled.
+		// If false, all served IPFS blocks must be pinned locally.
+		Enabled bool `yaml:"enabled"`
+		// Allowlist contains the CIDs of blocks that are allowed to be
+		// fetched remotely. If empty, all blocks are allowed.
+		AllowList []cid.Cid `yaml:"allowlist"`
 	}
 
-	Fetch struct {
-		AllowRemote bool      `yaml:"allowRemote"`
-		AllowList   []cid.Cid `yaml:"allowList"`
+	// HTTPGateway contains the configuration for the IPFS HTTP gateway
+	HTTPGateway struct {
+		ListenAddress     string      `yaml:"ListenAddress"`
+		RedirectPathStyle bool        `yaml:"redirectPathStyle"`
+		Fetch             RemoteFetch `yaml:"fetch"`
 	}
 
 	// IPFS contains the configuration for the IPFS node
@@ -26,7 +33,6 @@ type (
 		PrivateKey        string      `yaml:"privateKey"`
 		ListenAddresses   []string    `yaml:"listenAddresses"`
 		AnnounceAddresses []string    `yaml:"announceAddresses"`
-		Fetch             Fetch       `yaml:"fetch"`
 		Gateway           HTTPGateway `yaml:"gateway"`
 	}
 
