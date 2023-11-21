@@ -88,7 +88,7 @@ func (is *ipfsGatewayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		redirect = true
 	}
 
-	if redirect {
+	if redirect && is.config.IPFS.Gateway.RedirectPathStyle {
 		redirectPathCID(w, r, c, path, is.log.Named("redirect"))
 		return
 	}

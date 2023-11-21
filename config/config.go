@@ -8,13 +8,19 @@ type (
 		Bucket   string `yaml:"bucket"`
 	}
 
-	// IPFS contains the listen address of the IPFS gateway
+	// HTTPGateway contains the configuration for the IPFS HTTP gateway
+	HTTPGateway struct {
+		ListenAddress     string `yaml:"ListenAddress"`
+		RedirectPathStyle bool   `yaml:"redirectPathStyle"`
+	}
+
+	// IPFS contains the configuration for the IPFS node
 	IPFS struct {
-		PrivateKey        string   `yaml:"privateKey"`
-		GatewayAddress    string   `yaml:"gatewayAddress"`
-		ListenAddresses   []string `yaml:"listenAddresses"`
-		AnnounceAddresses []string `yaml:"announceAddresses"`
-		FetchRemote       bool     `yaml:"fetchRemote"`
+		PrivateKey        string      `yaml:"privateKey"`
+		ListenAddresses   []string    `yaml:"listenAddresses"`
+		AnnounceAddresses []string    `yaml:"announceAddresses"`
+		FetchRemote       bool        `yaml:"fetchRemote"`
+		Gateway           HTTPGateway `yaml:"gateway"`
 	}
 
 	// API contains the listen address of the API server
