@@ -1,9 +1,12 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multicodec"
+	"github.com/multiformats/go-multihash"
 	"go.sia.tech/fsd/config"
 	"go.sia.tech/fsd/ipfs"
 	"go.sia.tech/fsd/sia"
@@ -29,7 +32,20 @@ func (as *apiServer) handleCalculate(jc jape.Context) {
 	body := jc.Request.Body
 	defer body.Close()
 
-	blocks, err := as.sia.CalculateBlocks(ctx, body)
+	opts := sia.CIDOptions{
+		CIDBuilder: cid.V1Builder{Codec: uint64(multicodec.DagPb), MhType: multihash.SHA2_256},
+		RawLeaves:  true,
+	}
+
+	if err := jc.DecodeForm("rawLeaves", &opts.RawLeaves); err != nil {
+		return
+	} else if err := jc.DecodeForm("maxLinks", &opts.MaxLinks); err != nil {
+		return
+	} else if err := jc.DecodeForm("blockSize", &opts.BlockSize); err != nil {
+		return
+	}
+
+	blocks, err := as.sia.CalculateBlocks(ctx, body, opts)
 	if err != nil {
 		jc.Error(err, http.StatusInternalServerError)
 		return
@@ -43,20 +59,32 @@ func (as *apiServer) handlePin(jc jape.Context) {
 	if err := jc.DecodeParam("cid", &cidStr); err != nil {
 		return
 	}
-	cid, err := cid.Parse(cidStr)
+	c, err := cid.Parse(cidStr)
 	if err != nil {
 		jc.Error(err, http.StatusBadRequest)
 		return
 	}
 
-	r, err := as.ipfs.DownloadCID(ctx, cid, nil)
+	// TODO: break this out for better support, the current implementation will
+	// not handle anything but standard unixfs files with the default block size
+	r, err := as.ipfs.DownloadCID(ctx, c, nil)
 	if err != nil {
 		jc.Error(err, http.StatusInternalServerError)
 		return
 	}
 	defer r.Close()
 
-	if err := as.sia.UploadCID(ctx, cid, r); err != nil {
+	var opts sia.CIDOptions
+	switch c.Version() {
+	case 1:
+		prefix := c.Prefix()
+		opts.CIDBuilder = cid.V1Builder{Codec: prefix.Codec, MhType: prefix.MhType, MhLength: prefix.MhLength}
+		opts.RawLeaves = true
+	case 0:
+		opts.CIDBuilder = cid.V0Builder{}
+	}
+
+	if err := as.sia.UploadCID(ctx, c, r, opts); err != nil {
 		jc.Error(err, http.StatusInternalServerError)
 		return
 	}
@@ -68,23 +96,40 @@ func (as *apiServer) handleUpload(jc jape.Context) {
 	if err := jc.DecodeParam("cid", &cidStr); err != nil {
 		return
 	}
-	cid, err := cid.Parse(cidStr)
+	c, err := cid.Parse(cidStr)
 	if err != nil {
 		jc.Error(err, http.StatusBadRequest)
+		return
+	} else if c.Version() != 1 {
+		jc.Error(errors.New("only v1 CIDs are supported"), http.StatusBadRequest)
 		return
 	}
 
 	body := jc.Request.Body
 	defer body.Close()
 
-	err = as.sia.UploadCID(ctx, cid, body)
+	prefix := c.Prefix()
+	opts := sia.CIDOptions{
+		CIDBuilder: cid.V1Builder{Codec: prefix.Codec, MhType: prefix.MhType, MhLength: prefix.MhLength},
+		RawLeaves:  true,
+	}
+
+	if err := jc.DecodeForm("rawLeaves", &opts.RawLeaves); err != nil {
+		return
+	} else if err := jc.DecodeForm("maxLinks", &opts.MaxLinks); err != nil {
+		return
+	} else if err := jc.DecodeForm("blockSize", &opts.BlockSize); err != nil {
+		return
+	}
+
+	err = as.sia.UploadCID(ctx, c, body, opts)
 	if err != nil {
 		jc.Error(err, http.StatusInternalServerError)
 		return
 	}
 
 	// the root cid is the first block
-	jc.Encode(cid.String())
+	jc.Encode(c.String())
 }
 
 func (as *apiServer) handleVerifyCID(jc jape.Context) {
