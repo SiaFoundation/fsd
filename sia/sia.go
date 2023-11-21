@@ -44,13 +44,30 @@ type (
 
 		renterd config.Renterd
 	}
+
+	CIDOptions struct {
+		CIDBuilder cid.Builder
+		RawLeaves  bool
+		MaxLinks   int
+		BlockSize  int64
+	}
 )
 
 // ErrNotFound is returned when a CID is not found in the store
 var ErrNotFound = errors.New("not found")
 
+func setDefaultCIDOpts(opts *CIDOptions) {
+	if opts.MaxLinks <= 0 {
+		opts.MaxLinks = ihelpers.DefaultLinksPerBlock
+	}
+
+	if opts.BlockSize <= 0 {
+		opts.BlockSize = chunker.DefaultBlockSize
+	}
+}
+
 // UploadCID uploads a CID to the renterd node
-func (n *Node) UploadCID(ctx context.Context, c cid.Cid, r io.Reader) error {
+func (n *Node) UploadCID(ctx context.Context, c cid.Cid, r io.Reader, opts CIDOptions) error {
 	log := n.log.Named("upload").With(zap.Stringer("cid", c), zap.String("bucket", n.renterd.Bucket))
 
 	dataKey := c.String()
@@ -86,11 +103,13 @@ func (n *Node) UploadCID(ctx context.Context, c cid.Cid, r io.Reader) error {
 		}
 	}()
 
-	spl := chunker.NewSizeSplitter(r, chunker.DefaultBlockSize)
-
+	setDefaultCIDOpts(&opts)
+	spl := chunker.NewSizeSplitter(r, opts.BlockSize)
 	dbp := ihelpers.DagBuilderParams{
-		Maxlinks: ihelpers.DefaultLinksPerBlock,
-		Dagserv:  dagSvc,
+		Dagserv:    dagSvc,
+		CidBuilder: opts.CIDBuilder,
+		RawLeaves:  opts.RawLeaves,
+		Maxlinks:   opts.MaxLinks,
 	}
 	db, err := dbp.New(spl)
 	if err != nil {
@@ -189,14 +208,16 @@ func (n *Node) ProxyHTTPDownload(cid cid.Cid, r *http.Request, w http.ResponseWr
 }
 
 // CalculateBlocks calculates the blocks for a given reader and returns them
-func (n *Node) CalculateBlocks(ctx context.Context, r io.Reader) ([]Block, error) {
+func (n *Node) CalculateBlocks(ctx context.Context, r io.Reader, opts CIDOptions) ([]Block, error) {
 	dagSvc := NewUnixFileUploader("", io.Discard, io.Discard, n.log.Named("calculate"))
 
-	spl := chunker.NewSizeSplitter(r, chunker.DefaultBlockSize)
-
+	setDefaultCIDOpts(&opts)
+	spl := chunker.NewSizeSplitter(r, opts.BlockSize)
 	dbp := ihelpers.DagBuilderParams{
-		Maxlinks: ihelpers.DefaultLinksPerBlock,
-		Dagserv:  dagSvc,
+		Dagserv:    dagSvc,
+		CidBuilder: opts.CIDBuilder,
+		RawLeaves:  opts.RawLeaves,
+		Maxlinks:   opts.MaxLinks,
 	}
 	db, err := dbp.New(spl)
 	if err != nil {
