@@ -1,5 +1,7 @@
 package config
 
+import "github.com/ipfs/go-cid"
+
 type (
 	// Renterd contains the address, password, and bucket on the renterd worker
 	Renterd struct {
@@ -14,12 +16,17 @@ type (
 		RedirectPathStyle bool   `yaml:"redirectPathStyle"`
 	}
 
+	Fetch struct {
+		AllowRemote bool      `yaml:"allowRemote"`
+		AllowList   []cid.Cid `yaml:"allowList"`
+	}
+
 	// IPFS contains the configuration for the IPFS node
 	IPFS struct {
 		PrivateKey        string      `yaml:"privateKey"`
 		ListenAddresses   []string    `yaml:"listenAddresses"`
 		AnnounceAddresses []string    `yaml:"announceAddresses"`
-		FetchRemote       bool        `yaml:"fetchRemote"`
+		Fetch             Fetch       `yaml:"fetch"`
 		Gateway           HTTPGateway `yaml:"gateway"`
 	}
 
