@@ -139,10 +139,16 @@ func (n *Node) getBlock(ctx context.Context, c cid.Cid) (Block, error) {
 			return n.store.GetBlock(ctx, v1Cid)
 		case 1:
 			h := c.Hash()
-			if c.Prefix().Codec != multihash.SHA2_256 || len(h) != 32 {
-				return Block{}, ErrNotFound // CID is not convertible to v0
+			dec, err := multihash.Decode(h)
+			if err != nil {
+				n.log.Debug("failed to decode  v1 multihash", zap.Stringer("cid", c), zap.Error(err))
+				return Block{}, ErrNotFound
 			}
-			v0Cid := cid.NewCidV0(c.Hash())
+			if dec.Code != multihash.SHA2_256 || dec.Length != 32 {
+				n.log.Debug("cannot convert v1 CID to v0", zap.Stringer("cid", c), zap.String("code", multihash.Codes[dec.Code]), zap.Int("length", dec.Length))
+				return Block{}, ErrNotFound
+			}
+			v0Cid := cid.NewCidV0(h)
 			return n.store.GetBlock(ctx, v0Cid)
 		}
 		return Block{}, ErrNotFound
