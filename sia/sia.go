@@ -154,7 +154,7 @@ func (n *Node) ProxyHTTPDownload(cid cid.Cid, r *http.Request, w http.ResponseWr
 		return errors.New("cannot proxy partial downloads")
 	}
 
-	target, err := url.Parse(n.renterd.Address + "/objects/" + cid.String())
+	target, err := url.Parse(n.renterd.Address + "/objects/" + block.Data.Key)
 	if err != nil {
 		panic(err)
 	}
