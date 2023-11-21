@@ -57,7 +57,7 @@ func redirectPathCID(w http.ResponseWriter, r *http.Request, c cid.Cid, path []s
 		scheme = str + "://"
 	}
 
-	ustr := scheme + c.String() + "." + host
+	ustr := scheme + c.String() + ".ipfs." + host
 	u, err := url.Parse(ustr)
 	if err != nil {
 		http.Error(w, "", http.StatusInternalServerError)
