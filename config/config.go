@@ -23,7 +23,7 @@ type (
 
 	// HTTPGateway contains the configuration for the IPFS HTTP gateway
 	HTTPGateway struct {
-		ListenAddress     string      `yaml:"ListenAddress"`
+		ListenAddress     string      `yaml:"listenAddress"`
 		RedirectPathStyle bool        `yaml:"redirectPathStyle"`
 		Fetch             RemoteFetch `yaml:"fetch"`
 	}
