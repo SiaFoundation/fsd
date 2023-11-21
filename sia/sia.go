@@ -14,6 +14,7 @@ import (
 	"github.com/ipfs/boxo/ipld/unixfs/importer/balanced"
 	ihelpers "github.com/ipfs/boxo/ipld/unixfs/importer/helpers"
 	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multihash"
 	"go.sia.tech/fsd/config"
 	"go.sia.tech/renterd/api"
 	"go.sia.tech/renterd/worker"
@@ -137,6 +138,10 @@ func (n *Node) getBlock(ctx context.Context, c cid.Cid) (Block, error) {
 			v1Cid := cid.NewCidV1(c.Type(), c.Hash())
 			return n.store.GetBlock(ctx, v1Cid)
 		case 1:
+			h := c.Hash()
+			if c.Prefix().Codec != multihash.SHA2_256 || len(h) != 32 {
+				return Block{}, ErrNotFound // CID is not convertible to v0
+			}
 			v0Cid := cid.NewCidV0(c.Hash())
 			return n.store.GetBlock(ctx, v0Cid)
 		}
