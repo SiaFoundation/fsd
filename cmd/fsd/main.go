@@ -37,7 +37,9 @@ var (
 			Bucket:   "ipfs",
 		},
 		IPFS: config.IPFS{
-			GatewayAddress: ":8080",
+			Gateway: config.HTTPGateway{
+				ListenAddress: ":8080",
+			},
 		},
 		API: config.API{
 			Address: ":8081",
@@ -164,7 +166,7 @@ func main() {
 	}
 	defer apiListener.Close()
 
-	gatewayListener, err := net.Listen("tcp", cfg.IPFS.GatewayAddress)
+	gatewayListener, err := net.Listen("tcp", cfg.IPFS.Gateway.ListenAddress)
 	if err != nil {
 		log.Fatal("failed to listen", zap.Error(err))
 	}
