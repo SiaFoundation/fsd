@@ -29,7 +29,7 @@ type (
 	}
 
 	// A Block is an IPFS chunk with metadata for efficient storage and
-	// retrieval from renterd
+	// retrieval from a renterd object
 	Block struct {
 		CID      cid.Cid     `json:"cid"`
 		Data     RenterdData `json:"data"`

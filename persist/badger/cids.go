@@ -13,7 +13,7 @@ import (
 // HasBlock returns true if the CID is in the store
 func (s *Store) HasBlock(_ context.Context, c cid.Cid) (ok bool, err error) {
 	err = s.db.View(func(txn *badger.Txn) error {
-		_, err := txn.Get([]byte(c.Bytes()))
+		_, err := txn.Get([]byte(c.Hash()))
 		if err != nil {
 			if err == badger.ErrKeyNotFound {
 				return nil
@@ -29,7 +29,7 @@ func (s *Store) HasBlock(_ context.Context, c cid.Cid) (ok bool, err error) {
 // GetBlock returns the block metadata for a given CID
 func (s *Store) GetBlock(_ context.Context, c cid.Cid) (cm sia.Block, err error) {
 	err = s.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(c.Bytes()))
+		item, err := txn.Get([]byte(c.Hash()))
 		if err != nil {
 			if err == badger.ErrKeyNotFound {
 				return sia.ErrNotFound
@@ -50,7 +50,7 @@ func (s *Store) AddBlocks(_ context.Context, blocks []sia.Block) error {
 			buf, err := json.Marshal(block)
 			if err != nil {
 				return err
-			} else if err := txn.Set([]byte(block.CID.Bytes()), buf); err != nil {
+			} else if err := txn.Set([]byte(block.CID.Hash()), buf); err != nil {
 				return err
 			}
 		}

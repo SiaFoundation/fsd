@@ -29,8 +29,8 @@ func getURLCID(r *http.Request) (c cid.Cid, path []string, redirect bool, _ erro
 	}
 
 	path = strings.Split(strings.TrimSpace(strings.Trim(r.URL.Path, "/")), "/")
-	if path[0] == "" {
-		path = nil
+	if len(path) != 0 && path[0] == "" { // ignore leading slash
+		path = path[1:]
 	}
 
 	// try to parse the subdomain as a CID
@@ -41,7 +41,7 @@ func getURLCID(r *http.Request) (c cid.Cid, path []string, redirect bool, _ erro
 	}
 
 	// check if the path contains a CID
-	if len(path) >= 2 && path[0] == "ipfs" || path[0] == "ipns" {
+	if len(path) >= 2 && (path[0] == "ipfs" || path[0] == "ipns") {
 		cidStr, path = path[1], path[2:]
 
 		if c, err := cid.Parse(cidStr); err == nil {
