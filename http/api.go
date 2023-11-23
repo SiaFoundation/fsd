@@ -10,18 +10,14 @@ import (
 	"go.sia.tech/fsd/ipfs"
 	"go.sia.tech/fsd/sia"
 	"go.sia.tech/jape"
-	"go.sia.tech/renterd/worker"
 	"go.uber.org/zap"
 )
 
 type (
 	apiServer struct {
-		ipfs   *ipfs.Node
-		sia    *sia.Node
-		worker *worker.Client
-		log    *zap.Logger
-
-		renterd config.Renterd
+		ipfs *ipfs.Node
+		sia  *sia.Node
+		log  *zap.Logger
 	}
 )
 
@@ -82,36 +78,23 @@ func (as *apiServer) handlePin(jc jape.Context) {
 	case 0:
 		opts.CIDBuilder = cid.V0Builder{}
 	}
-
-	if err := as.sia.UploadCID(ctx, c, r, opts); err != nil {
-		jc.Error(err, http.StatusInternalServerError)
-		return
-	}
 }
 
 func (as *apiServer) handleUpload(jc jape.Context) {
-	ctx := jc.Request.Context()
-	var cidStr string
-	if err := jc.DecodeParam("cid", &cidStr); err != nil {
-		return
-	}
-	c, err := cid.Parse(cidStr)
-	if err != nil {
-		jc.Error(err, http.StatusBadRequest)
-		return
-	}
-
 	body := jc.Request.Body
 	defer body.Close()
 
-	var opts sia.CIDOptions
+	var cidVersion int
+	if err := jc.DecodeForm("cidVersion", &cidVersion); err != nil {
+		return
+	}
 
-	prefix := c.Prefix()
-	switch prefix.Version {
+	var opts sia.CIDOptions
+	switch cidVersion {
 	case 0:
 		opts.CIDBuilder = cid.V0Builder{}
 	case 1:
-		opts.CIDBuilder = cid.V1Builder{Codec: prefix.Codec, MhType: prefix.MhType, MhLength: prefix.MhLength}
+		opts.CIDBuilder = cid.V1Builder{Codec: uint64(multicodec.DagPb), MhType: multihash.SHA2_256}
 		opts.RawLeaves = true
 	}
 
@@ -123,7 +106,7 @@ func (as *apiServer) handleUpload(jc jape.Context) {
 		return
 	}
 
-	err = as.sia.UploadCID(ctx, c, body, opts)
+	c, err := as.sia.UploadFile(jc.Request.Context(), body, opts)
 	if err != nil {
 		jc.Error(err, http.StatusInternalServerError)
 		return
@@ -154,9 +137,6 @@ func (as *apiServer) handleVerifyCID(jc jape.Context) {
 // NewAPIHandler returns a new http.Handler that handles requests to the api
 func NewAPIHandler(ipfs *ipfs.Node, sia *sia.Node, cfg config.Config, log *zap.Logger) http.Handler {
 	s := &apiServer{
-		worker:  worker.NewClient(cfg.Renterd.Address, cfg.Renterd.Password),
-		renterd: cfg.Renterd,
-
 		ipfs: ipfs,
 		sia:  sia,
 		log:  log,
@@ -164,7 +144,7 @@ func NewAPIHandler(ipfs *ipfs.Node, sia *sia.Node, cfg config.Config, log *zap.L
 	return jape.Mux(map[string]jape.Handler{
 		"POST /api/cid/calculate":   s.handleCalculate,
 		"POST /api/cid/verify/:cid": s.handleVerifyCID,
-		"POST /api/upload/:cid":     s.handleUpload,
+		"POST /api/upload":          s.handleUpload,
 		"POST /api/pin/:cid":        s.handlePin,
 	})
 }
