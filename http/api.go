@@ -1,7 +1,6 @@
 package http
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/ipfs/go-cid"
@@ -100,17 +99,20 @@ func (as *apiServer) handleUpload(jc jape.Context) {
 	if err != nil {
 		jc.Error(err, http.StatusBadRequest)
 		return
-	} else if c.Version() != 1 {
-		jc.Error(errors.New("only v1 CIDs are supported"), http.StatusBadRequest)
-		return
 	}
 
 	body := jc.Request.Body
 	defer body.Close()
 
-	opts := sia.CIDOptions{
-		CIDBuilder: cid.V1Builder{Codec: uint64(multicodec.DagPb), MhType: multihash.SHA2_256},
-		RawLeaves:  true,
+	var opts sia.CIDOptions
+
+	prefix := c.Prefix()
+	switch prefix.Version {
+	case 0:
+		opts.CIDBuilder = cid.V0Builder{}
+	case 1:
+		opts.CIDBuilder = cid.V1Builder{Codec: prefix.Codec, MhType: prefix.MhType, MhLength: prefix.MhLength}
+		opts.RawLeaves = true
 	}
 
 	if err := jc.DecodeForm("rawLeaves", &opts.RawLeaves); err != nil {
