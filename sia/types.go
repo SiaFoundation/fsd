@@ -7,7 +7,6 @@ import (
 type (
 	// A RenterdData links IPFS block data to an object stored on a renterd node
 	RenterdData struct {
-		Key       string
 		Offset    uint64
 		FileSize  uint64
 		BlockSize uint64
@@ -16,7 +15,6 @@ type (
 	// RenterdMeta links IPFS block metadata to an object stored on a renterd
 	// node
 	RenterdMeta struct {
-		Key    string
 		Offset uint64
 		Length uint64
 	}
