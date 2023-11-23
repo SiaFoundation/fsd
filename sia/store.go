@@ -41,20 +41,11 @@ func (bs *RenterdBlockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 	return bs.store.HasBlock(ctx, c)
 }
 
-// Get returns a block by CID
-func (bs *RenterdBlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
-	cm, err := bs.store.GetBlock(ctx, c)
-	if errors.Is(err, ErrNotFound) {
-		return nil, format.ErrNotFound{Cid: c}
-	} else if err != nil {
-		return nil, fmt.Errorf("failed to get cid: %w", err)
-	}
-
-	bs.log.Debug("get block", zap.Stringer("cid", c), zap.Uint64("blockSize", cm.Data.BlockSize), zap.Uint64("blockOffset", cm.Data.Offset), zap.Uint64("metadataSize", cm.Metadata.Length), zap.Uint64("metadataOffset", cm.Metadata.Offset))
-
+func (bs *RenterdBlockStore) downloadBlock(ctx context.Context, cm Block) (blocks.Block, error) {
 	errCh := make(chan error, 2)
 	defer close(errCh)
 
+	var err error
 	var data, metadata []byte
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -123,6 +114,25 @@ func (bs *RenterdBlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, 
 		})
 	}
 	return node, nil
+}
+
+// Get returns a block by CID
+func (bs *RenterdBlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
+	cm, err := bs.store.GetBlock(ctx, c)
+	if errors.Is(err, ErrNotFound) {
+		return nil, format.ErrNotFound{Cid: c}
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to get cid: %w", err)
+	}
+
+	log := bs.log.With(zap.Stringer("cid", c), zap.String("dataKey", cm.Data.Key), zap.String("metaKey", cm.Metadata.Key), zap.Uint64("blockSize", cm.Data.BlockSize), zap.Uint64("blockOffset", cm.Data.Offset), zap.Uint64("metadataSize", cm.Metadata.Length), zap.Uint64("metadataOffset", cm.Metadata.Offset))
+	log.Debug("downloading block")
+
+	block, err := bs.downloadBlock(ctx, cm)
+	if err != nil {
+		log.Error("failed to download block", zap.Error(err))
+	}
+	return block, err
 }
 
 // GetSize returns the CIDs mapped BlockSize
