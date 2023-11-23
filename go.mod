@@ -16,8 +16,8 @@ require (
 	github.com/multiformats/go-multiaddr v0.11.0
 	github.com/multiformats/go-multicodec v0.9.0
 	github.com/multiformats/go-multihash v0.2.3
-	go.sia.tech/jape v0.11.0
-	go.sia.tech/renterd v0.6.1-0.20231117113258-d4afcc97a585
+	go.sia.tech/jape v0.11.1
+	go.sia.tech/renterd v0.6.1-0.20231122164826-468dbf36c2b0
 	go.uber.org/zap v1.25.0
 	gopkg.in/yaml.v3 v3.0.1
 	lukechampine.com/frand v1.4.2

@@ -707,12 +707,12 @@ go.sia.tech/core v0.1.12-0.20231011172826-6ca0ac7b3b6b h1:gHnhRiY1SMWCEFu+1Xo0a9
 go.sia.tech/core v0.1.12-0.20231011172826-6ca0ac7b3b6b/go.mod h1:3EoY+rR78w1/uGoXXVqcYdwSjSJKuEMI5bL7WROA27Q=
 go.sia.tech/gofakes3 v0.0.0-20231109151325-e0d47c10dce2 h1:ulzfJNjxN5DjXHClkW2pTiDk+eJ+0NQhX87lFDZ03t0=
 go.sia.tech/gofakes3 v0.0.0-20231109151325-e0d47c10dce2/go.mod h1:PlsiVCn6+wssrR7bsOIlZm0DahsVrDydrlbjY4F14sg=
-go.sia.tech/jape v0.11.0 h1:S2JTONZ4FGl5JFmh3VFGkieuFB1wXRLImkHc859V0FY=
-go.sia.tech/jape v0.11.0/go.mod h1:4QqmBB+t3W7cNplXPj++ZqpoUb2PeiS66RLpXmEGap4=
+go.sia.tech/jape v0.11.1 h1:M7IP+byXL7xOqzxcHUQuXW+q3sYMkYzmMlMw+q8ZZw0=
+go.sia.tech/jape v0.11.1/go.mod h1:4QqmBB+t3W7cNplXPj++ZqpoUb2PeiS66RLpXmEGap4=
 go.sia.tech/mux v1.2.0 h1:ofa1Us9mdymBbGMY2XH/lSpY8itFsKIo/Aq8zwe+GHU=
 go.sia.tech/mux v1.2.0/go.mod h1:Yyo6wZelOYTyvrHmJZ6aQfRoer3o4xyKQ4NmQLJrBSo=
-go.sia.tech/renterd v0.6.1-0.20231117113258-d4afcc97a585 h1:CsnWOTGyqn01ZbUwnbTW/1QW++2wRkxIC03CqlPCouY=
-go.sia.tech/renterd v0.6.1-0.20231117113258-d4afcc97a585/go.mod h1:wJGnnLUsNhN82DkA45aRUcb++xGm2AjOcpDG0SqQ06M=
+go.sia.tech/renterd v0.6.1-0.20231122164826-468dbf36c2b0 h1:HjQjPIcjj3HsLurGoqRT4JoDX+ikR5l9Lxyyd9R9U9o=
+go.sia.tech/renterd v0.6.1-0.20231122164826-468dbf36c2b0/go.mod h1:5eX9/Ezl+F0mkDs7q6aU4yrHsh/uhWdKeeq37E+Li9M=
 go.sia.tech/siad v1.5.10-0.20230228235644-3059c0b930ca h1:aZMg2AKevn7jKx+wlusWQfwSM5pNU9aGtRZme29q3O4=
 go.sia.tech/siad v1.5.10-0.20230228235644-3059c0b930ca/go.mod h1:h/1afFwpxzff6/gG5i1XdAgPK7dEY6FaibhK7N5F86Y=
 go.uber.org/atomic v1.4.0/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=
