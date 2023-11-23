@@ -20,8 +20,6 @@ type UnixFileUploader struct {
 	metaOffset uint64
 	fileSize   uint64
 
-	key string
-
 	data     io.Writer
 	metadata io.Writer
 
@@ -131,13 +129,11 @@ func (ufs *UnixFileUploader) Add(ctx context.Context, node format.Node) error {
 		CID:   node.Cid(),
 		Links: links,
 		Data: RenterdData{
-			Key:       ufs.key,
 			Offset:    dataOffset,
 			FileSize:  fileSize,
 			BlockSize: dataSize,
 		},
 		Metadata: RenterdMeta{
-			Key:    ufs.key + ".meta",
 			Offset: ufs.metaOffset,
 			Length: uint64(metaLen),
 		},
@@ -189,11 +185,10 @@ func (ufs *UnixFileUploader) Blocks() []Block {
 
 // NewUnixFileUploader creates a new UnixFileUploader that uploads a UnixFS DAG
 // to a renterd node.
-func NewUnixFileUploader(key string, data, metadata io.Writer, log *zap.Logger) *UnixFileUploader {
+func NewUnixFileUploader(data, metadata io.Writer, log *zap.Logger) *UnixFileUploader {
 	return &UnixFileUploader{
 		log: log,
 
-		key:      key,
 		data:     data,
 		metadata: metadata,
 	}
