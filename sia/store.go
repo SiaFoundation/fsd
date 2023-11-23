@@ -122,9 +122,6 @@ func (bs *RenterdBlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, 
 			Cid:  link.CID,
 		})
 	}
-	if actual := node.Cid(); !actual.Equals(c) {
-		panic(fmt.Errorf("unexpected cid: requested %q got %q", c.String(), actual.String())) // developer error
-	}
 	return node, nil
 }
 
