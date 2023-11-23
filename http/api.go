@@ -108,9 +108,8 @@ func (as *apiServer) handleUpload(jc jape.Context) {
 	body := jc.Request.Body
 	defer body.Close()
 
-	prefix := c.Prefix()
 	opts := sia.CIDOptions{
-		CIDBuilder: cid.V1Builder{Codec: prefix.Codec, MhType: prefix.MhType, MhLength: prefix.MhLength},
+		CIDBuilder: cid.V1Builder{Codec: uint64(multicodec.DagPb), MhType: multihash.SHA2_256},
 		RawLeaves:  true,
 	}
 
