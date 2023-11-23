@@ -93,9 +93,21 @@ func (ufs *UnixFileUploader) Add(ctx context.Context, node format.Node) error {
 		return err
 	}
 
+	var links []Link
+	for _, link := range node.Links() {
+		links = append(links, Link{
+			CID:  link.Cid,
+			Name: link.Name,
+			Size: link.Size,
+		})
+	}
+
 	dataSize := uint64(len(data))
 	fileSize := ufs.fileSize + dataSize
-	dataOffset := ufs.dataOffset + dataSize - fileSize
+	dataOffset := ufs.dataOffset
+	if dataSize == 0 {
+		dataOffset = 0
+	}
 
 	ufs.log.Debug("adding node",
 		zap.Stringer("cid", node.Cid()),
@@ -113,15 +125,6 @@ func (ufs *UnixFileUploader) Add(ctx context.Context, node format.Node) error {
 	_, err = ufs.data.Write(data)
 	if err != nil {
 		return fmt.Errorf("failed to write data: %w", err)
-	}
-
-	var links []Link
-	for _, link := range node.Links() {
-		links = append(links, Link{
-			CID:  link.Cid,
-			Name: link.Name,
-			Size: link.Size,
-		})
 	}
 
 	block := Block{
