@@ -5,9 +5,11 @@ import "github.com/ipfs/go-cid"
 type (
 	// Renterd contains the address, password, and bucket on the renterd worker
 	Renterd struct {
-		Address  string `yaml:"address"`
-		Password string `yaml:"password"`
-		Bucket   string `yaml:"bucket"`
+		WorkerAddress  string `yaml:"workerAddress"`
+		WorkerPassword string `yaml:"workerPassword"`
+		BusAddress     string `yaml:"busAddress"`
+		BusPassword    string `yaml:"busPassword"`
+		Bucket         string `yaml:"bucket"`
 	}
 
 	// RemoteFetch contains settings for enabling/disabling remote IPFS block
