@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	chunker "github.com/ipfs/boxo/chunker"
+	"github.com/ipfs/boxo/ipld/merkledag"
 	"github.com/ipfs/boxo/ipld/unixfs/importer/balanced"
 	ihelpers "github.com/ipfs/boxo/ipld/unixfs/importer/helpers"
 	blocks "github.com/ipfs/go-block-format"
@@ -237,13 +238,29 @@ func (n *Node) CalculateBlocks(ctx context.Context, r io.Reader, opts UnixFSOpti
 func (n *Node) VerifyCID(ctx context.Context, c cid.Cid) error {
 	rbs := NewBlockStore(n.store, n.renterd, n.log.Named("verify"))
 
-	block, err := rbs.Get(ctx, c)
-	if err != nil {
-		return fmt.Errorf("failed to get block: %w", err)
-	} else if block.Cid().Hash().String() != c.Hash().String() {
-		return fmt.Errorf("unexpected root cid: %s", block.Cid().String())
+	var recursiveVerifyCid func(ctx context.Context, c cid.Cid) error
+	recursiveVerifyCid = func(ctx context.Context, c cid.Cid) error {
+		block, err := rbs.Get(ctx, c)
+		if err != nil {
+			return fmt.Errorf("failed to get block: %w", err)
+		} else if block.Cid().Hash().String() != c.Hash().String() {
+			return fmt.Errorf("unexpected multihash: %s != %s", block.Cid(), c)
+		}
+
+		switch node := block.(type) {
+		case *merkledag.ProtoNode:
+			links := node.Links()
+			for _, link := range links {
+				if err := recursiveVerifyCid(ctx, link.Cid); err != nil {
+					return err
+				}
+			}
+		}
+
+		return nil
 	}
-	return nil
+
+	return recursiveVerifyCid(ctx, c)
 }
 
 // New creates a new Sia IPFS store

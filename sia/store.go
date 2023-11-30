@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/ipfs/boxo/ipld/merkledag"
@@ -102,10 +103,12 @@ func (bs *RenterdBlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, 
 	log := bs.log.With(zap.Stringer("cid", c), zap.String("dataBucket", cm.Data.Bucket), zap.String("dataKey", cm.Data.Key), zap.String("metaBucket", cm.Metadata.Bucket), zap.String("metaKey", cm.Metadata.Key), zap.Uint64("blockSize", cm.Data.BlockSize), zap.Uint64("blockOffset", cm.Data.Offset), zap.Uint64("metadataSize", cm.Metadata.Length), zap.Uint64("metadataOffset", cm.Metadata.Offset))
 	log.Debug("downloading block")
 
+	start := time.Now()
 	block, err := bs.downloadBlock(ctx, cm)
 	if err != nil {
 		log.Error("failed to download block", zap.Error(err))
 	}
+	log.Debug("block downloaded", zap.Duration("elapsed", time.Since(start)))
 	return block, err
 }
 
