@@ -55,7 +55,7 @@ func (as *apiServer) handleUnixFSUpload(jc jape.Context) {
 }
 
 func parseUnixFSOptions(jc jape.Context) (sia.UnixFSOptions, bool) {
-	cidVersion := 1
+	var cidVersion int
 	if err := jc.DecodeForm("version", &cidVersion); err != nil {
 		return sia.UnixFSOptions{}, false
 	}
