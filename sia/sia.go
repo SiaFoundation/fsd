@@ -54,8 +54,8 @@ type (
 		renterd config.Renterd
 	}
 
-	// CIDOptions holds configuration options for CID uploads
-	CIDOptions struct {
+	// UnixFSOptions holds configuration options for UnixFS uploads
+	UnixFSOptions struct {
 		CIDBuilder cid.Builder
 		RawLeaves  bool
 		MaxLinks   int
@@ -66,7 +66,7 @@ type (
 // ErrNotFound is returned when a CID is not found in the store
 var ErrNotFound = errors.New("not found")
 
-func setDefaultCIDOpts(opts *CIDOptions) {
+func setDefaultCIDOpts(opts *UnixFSOptions) {
 	if opts.MaxLinks <= 0 {
 		opts.MaxLinks = ihelpers.DefaultLinksPerBlock
 	}
@@ -77,7 +77,7 @@ func setDefaultCIDOpts(opts *CIDOptions) {
 }
 
 // UploadFile uploads a unixfs file to the renterd node and returns the root CID
-func (n *Node) UploadFile(ctx context.Context, r io.Reader, opts CIDOptions) (cid.Cid, error) {
+func (n *Node) UploadFile(ctx context.Context, r io.Reader, opts UnixFSOptions) (cid.Cid, error) {
 	log := n.log.Named("upload").With(zap.String("bucket", n.renterd.Bucket))
 
 	uploadID := hex.EncodeToString(frand.Bytes(32))
@@ -207,7 +207,7 @@ func (n *Node) ProxyHTTPDownload(c cid.Cid, r *http.Request, w http.ResponseWrit
 }
 
 // CalculateBlocks calculates the blocks for a given reader and returns them
-func (n *Node) CalculateBlocks(ctx context.Context, r io.Reader, opts CIDOptions) ([]Block, error) {
+func (n *Node) CalculateBlocks(ctx context.Context, r io.Reader, opts UnixFSOptions) ([]Block, error) {
 	dagSvc := NewUnixFileUploader(io.Discard, io.Discard, n.log.Named("calculate"))
 
 	setDefaultCIDOpts(&opts)
