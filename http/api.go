@@ -1,6 +1,7 @@
 package http
 
 import (
+	"bufio"
 	"net/http"
 
 	"github.com/ipfs/go-cid"
@@ -61,13 +62,14 @@ func (as *apiServer) handlePin(jc jape.Context) {
 	}
 
 	// TODO: break this out for better support, the current implementation will
-	// not handle anything but standard unixfs files with the default block size
-	r, err := as.ipfs.DownloadCID(ctx, c, nil)
+	// not properly handle anything but standard unixfs files with the default
+	// block size
+	rr, err := as.ipfs.DownloadCID(ctx, c, nil)
 	if err != nil {
 		jc.Error(err, http.StatusInternalServerError)
 		return
 	}
-	defer r.Close()
+	defer rr.Close()
 
 	var opts sia.CIDOptions
 	switch c.Version() {
@@ -77,6 +79,16 @@ func (as *apiServer) handlePin(jc jape.Context) {
 	case 0:
 		opts.CIDBuilder = cid.V0Builder{}
 	}
+
+	br := bufio.NewReaderSize(rr, 256<<20) // 256 MiB
+	c, err = as.sia.UploadFile(jc.Request.Context(), br, opts)
+	if err != nil {
+		jc.Error(err, http.StatusInternalServerError)
+		return
+	}
+
+	// return the calculated cid
+	jc.Encode(c.String())
 }
 
 func (as *apiServer) handleUpload(jc jape.Context) {
@@ -104,13 +116,14 @@ func (as *apiServer) handleUpload(jc jape.Context) {
 		return
 	}
 
-	c, err := as.sia.UploadFile(jc.Request.Context(), body, opts)
+	br := bufio.NewReaderSize(body, 256<<20) // 256 MiB
+	c, err := as.sia.UploadFile(jc.Request.Context(), br, opts)
 	if err != nil {
 		jc.Error(err, http.StatusInternalServerError)
 		return
 	}
 
-	// the root cid is the first block
+	// return the calculated cid
 	jc.Encode(c.String())
 }
 
