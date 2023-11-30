@@ -255,6 +255,13 @@ func (n *Node) VerifyCID(ctx context.Context, c cid.Cid) error {
 					return err
 				}
 			}
+		case *merkledag.RawNode:
+			links := node.Links()
+			for _, link := range links {
+				if err := recursiveVerifyCid(ctx, link.Cid); err != nil {
+					return err
+				}
+			}
 		}
 
 		return nil
