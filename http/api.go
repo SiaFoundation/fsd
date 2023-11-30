@@ -91,7 +91,7 @@ func (as *apiServer) handlePin(jc jape.Context) {
 	jc.Encode(c.String())
 }
 
-func (as *apiServer) handleUpload(jc jape.Context) {
+func (as *apiServer) handleUnixFSUpload(jc jape.Context) {
 	body := jc.Request.Body
 	defer body.Close()
 
@@ -155,7 +155,7 @@ func NewAPIHandler(ipfs *ipfs.Node, sia *sia.Node, cfg config.Config, log *zap.L
 	return jape.Mux(map[string]jape.Handler{
 		"POST /api/cid/calculate":   s.handleCalculate,
 		"POST /api/cid/verify/:cid": s.handleVerifyCID,
-		"POST /api/upload":          s.handleUpload,
+		"POST /api/unixfs/upload":   s.handleUnixFSUpload,
 		"POST /api/pin/:cid":        s.handlePin,
 	})
 }
