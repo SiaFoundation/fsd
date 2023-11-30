@@ -154,9 +154,11 @@ func (n *Node) UploadFile(ctx context.Context, r io.Reader, opts UnixFSOptions) 
 
 	// get the blocks from the dag service
 	blocks := dagSvc.Blocks()
-	// set the object keys for the blocks
+	// set the renterd bucket and object key for the blocks
 	for i := range blocks {
+		blocks[i].Data.Bucket = n.renterd.Bucket
 		blocks[i].Data.Key = dataKey
+		blocks[i].Metadata.Bucket = n.renterd.Bucket
 		blocks[i].Metadata.Key = metaKey
 	}
 
@@ -188,7 +190,7 @@ func (n *Node) ProxyHTTPDownload(c cid.Cid, r *http.Request, w http.ResponseWrit
 		panic(err)
 	}
 	target.RawQuery = url.Values{
-		"bucket": []string{n.renterd.Bucket},
+		"bucket": []string{block.Data.Bucket},
 	}.Encode()
 
 	rp := &httputil.ReverseProxy{
