@@ -95,8 +95,8 @@ func (as *apiServer) handleUnixFSUpload(jc jape.Context) {
 	body := jc.Request.Body
 	defer body.Close()
 
-	var cidVersion int
-	if err := jc.DecodeForm("cidVersion", &cidVersion); err != nil {
+	cidVersion := 1
+	if err := jc.DecodeForm("version", &cidVersion); err != nil {
 		return
 	}
 
