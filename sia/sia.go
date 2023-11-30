@@ -37,8 +37,8 @@ type (
 	IPFSProvider interface {
 		// Provide broadcasts a CID to the IPFS network
 		Provide(cid.Cid) error
-		// FetchBlock fetches a block from the IPFS network
-		FetchBlock(context.Context, cid.Cid) (blocks.Block, error)
+		// GetBlock retrieves a block from the IPFS network
+		GetBlock(context.Context, cid.Cid) (blocks.Block, error)
 	}
 
 	// A Node is a specialized IPFS gateway that retrieves data from a renterd
@@ -80,8 +80,9 @@ func setDefaultCIDOpts(opts *CIDOptions) {
 func (n *Node) UploadFile(ctx context.Context, r io.Reader, opts CIDOptions) (cid.Cid, error) {
 	log := n.log.Named("upload").With(zap.String("bucket", n.renterd.Bucket))
 
-	tmpDataKey := hex.EncodeToString(frand.Bytes(32)) + ".tmp"
-	tmpMetaKey := tmpDataKey + ".meta"
+	uploadID := hex.EncodeToString(frand.Bytes(32))
+	tmpDataKey := uploadID + ".tmp"
+	tmpMetaKey := uploadID + ".meta.tmp"
 
 	metaR, metaW := io.Pipe()
 	dataR, dataW := io.Pipe()
@@ -151,11 +152,20 @@ func (n *Node) UploadFile(ctx context.Context, r io.Reader, opts CIDOptions) (ci
 		return cid.Cid{}, fmt.Errorf("failed to rename tmp metadata: %w", err)
 	}
 
+	// get the blocks from the dag service
 	blocks := dagSvc.Blocks()
+	// set the object keys for the blocks
+	for i := range blocks {
+		blocks[i].Data.Key = dataKey
+		blocks[i].Metadata.Key = metaKey
+	}
+
+	// add the blocks to the store
 	if err := n.store.AddBlocks(ctx, blocks); err != nil {
 		return cid.Cid{}, fmt.Errorf("failed to add blocks to store: %w", err)
 	}
 
+	// broadcast the CIDs to the IPFS network
 	for _, b := range blocks {
 		if err := n.ipfs.Provide(b.CID); err != nil {
 			return cid.Cid{}, fmt.Errorf("failed to provide block: %w", err)
@@ -173,7 +183,7 @@ func (n *Node) ProxyHTTPDownload(c cid.Cid, r *http.Request, w http.ResponseWrit
 		return errors.New("cannot proxy partial downloads")
 	}
 
-	target, err := url.Parse(n.renterd.WorkerAddress + "/objects/" + block.CID.String())
+	target, err := url.Parse(n.renterd.WorkerAddress + "/objects/" + block.Data.Key)
 	if err != nil {
 		panic(err)
 	}
