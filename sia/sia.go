@@ -240,7 +240,7 @@ func (n *Node) VerifyCID(ctx context.Context, c cid.Cid) error {
 	block, err := rbs.Get(ctx, c)
 	if err != nil {
 		return fmt.Errorf("failed to get block: %w", err)
-	} else if block.Cid().String() != c.String() {
+	} else if block.Cid().Hash().String() != c.Hash().String() {
 		return fmt.Errorf("unexpected root cid: %s", block.Cid().String())
 	}
 	return nil

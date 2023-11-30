@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/ipfs/boxo/ipld/merkledag"
@@ -42,46 +41,21 @@ func (bs *RenterdBlockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 }
 
 func (bs *RenterdBlockStore) downloadBlock(ctx context.Context, cm Block) (blocks.Block, error) {
-	errCh := make(chan error, 2)
-	defer close(errCh)
-
-	var err error
 	var data, metadata []byte
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
+	var err error
 
-		if cm.Data.BlockSize == 0 {
-			return
-		}
-
-		data, err = downloadPartialData(bs.renterd, cm.CID.String(), cm.Data.Offset, cm.Data.BlockSize)
+	if cm.Data.BlockSize != 0 {
+		data, err = downloadPartialData(ctx, bs.renterd, cm.Data.Bucket, cm.Data.Key, cm.Data.Offset, cm.Data.BlockSize)
 		if err != nil {
-			errCh <- fmt.Errorf("failed to download data: %w", err)
-			return
+			return nil, fmt.Errorf("failed to download data: %w", err)
 		}
-	}()
+	}
 
-	go func() {
-		defer wg.Done()
-
-		if cm.Metadata.Length == 0 {
-			return
-		}
-
-		metadata, err = downloadPartialData(bs.renterd, cm.CID.String()+".meta", cm.Metadata.Offset, cm.Metadata.Length)
+	if cm.Metadata.Length != 0 {
+		metadata, err = downloadPartialData(ctx, bs.renterd, cm.Metadata.Bucket, cm.Metadata.Key, cm.Metadata.Offset, cm.Metadata.Length)
 		if err != nil {
-			errCh <- fmt.Errorf("failed to download object: %w", err)
-			return
+			return nil, fmt.Errorf("failed to download object: %w", err)
 		}
-	}()
-
-	wg.Wait()
-	select {
-	case err := <-errCh:
-		return nil, err
-	default:
 	}
 
 	if n := len(data); n != int(cm.Data.BlockSize) {
@@ -125,7 +99,7 @@ func (bs *RenterdBlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, 
 		return nil, fmt.Errorf("failed to get cid: %w", err)
 	}
 
-	log := bs.log.With(zap.Stringer("cid", c), zap.String("dataKey", cm.Data.Key), zap.String("metaKey", cm.Metadata.Key), zap.Uint64("blockSize", cm.Data.BlockSize), zap.Uint64("blockOffset", cm.Data.Offset), zap.Uint64("metadataSize", cm.Metadata.Length), zap.Uint64("metadataOffset", cm.Metadata.Offset))
+	log := bs.log.With(zap.Stringer("cid", c), zap.String("dataBucket", cm.Data.Bucket), zap.String("dataKey", cm.Data.Key), zap.String("metaBucket", cm.Metadata.Bucket), zap.String("metaKey", cm.Metadata.Key), zap.Uint64("blockSize", cm.Data.BlockSize), zap.Uint64("blockOffset", cm.Data.Offset), zap.Uint64("metadataSize", cm.Metadata.Length), zap.Uint64("metadataOffset", cm.Metadata.Offset))
 	log.Debug("downloading block")
 
 	block, err := bs.downloadBlock(ctx, cm)
