@@ -32,9 +32,9 @@ var (
 	dir = "."
 	cfg = config.Config{
 		Renterd: config.Renterd{
-			Address:  "http://localhost:9980/api/worker",
-			Password: "password",
-			Bucket:   "ipfs",
+			WorkerAddress: "http://localhost:9980/api/worker",
+			BusAddress:    "http://localhost:9980/api/bus",
+			Bucket:        "ipfs",
 		},
 		IPFS: config.IPFS{
 			Gateway: config.HTTPGateway{

@@ -56,7 +56,7 @@ func (bs *RenterdBlockStore) downloadBlock(ctx context.Context, cm Block) (block
 			return
 		}
 
-		data, err = downloadPartialData(bs.renterd, cm.Data.Key, cm.Data.Offset, cm.Data.BlockSize)
+		data, err = downloadPartialData(bs.renterd, cm.CID.String(), cm.Data.Offset, cm.Data.BlockSize)
 		if err != nil {
 			errCh <- fmt.Errorf("failed to download data: %w", err)
 			return
@@ -70,7 +70,7 @@ func (bs *RenterdBlockStore) downloadBlock(ctx context.Context, cm Block) (block
 			return
 		}
 
-		metadata, err = downloadPartialData(bs.renterd, cm.Metadata.Key, cm.Metadata.Offset, cm.Metadata.Length)
+		metadata, err = downloadPartialData(bs.renterd, cm.CID.String()+".meta", cm.Metadata.Offset, cm.Metadata.Length)
 		if err != nil {
 			errCh <- fmt.Errorf("failed to download object: %w", err)
 			return

@@ -13,6 +13,7 @@ import (
 	"github.com/ipfs/boxo/ipld/merkledag"
 	fsio "github.com/ipfs/boxo/ipld/unixfs/io"
 	"github.com/ipfs/boxo/provider"
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	format "github.com/ipfs/go-ipld-format"
@@ -57,6 +58,11 @@ func (n *Node) Close() error {
 	n.host.Close()
 	n.blockService.Close()
 	return nil
+}
+
+// GetBlock fetches a block from the IPFS network
+func (n *Node) GetBlock(ctx context.Context, c cid.Cid) (blocks.Block, error) {
+	return n.blockService.GetBlock(ctx, c)
 }
 
 // DownloadCID downloads a CID from IPFS

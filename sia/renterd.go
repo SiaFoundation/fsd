@@ -11,7 +11,7 @@ import (
 
 // downloadPartialData range requests in the worker client are broken
 func downloadPartialData(cfg config.Renterd, key string, offset, length uint64) ([]byte, error) {
-	u, err := url.Parse(cfg.Address + "/objects/" + key)
+	u, err := url.Parse(cfg.WorkerAddress + "/objects/" + key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse url: %w", err)
 	}
@@ -25,7 +25,7 @@ func downloadPartialData(cfg config.Renterd, key string, offset, length uint64) 
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.SetBasicAuth("", cfg.Password)
+	req.SetBasicAuth("", cfg.WorkerPassword)
 	req.Header.Add("Range", fmt.Sprintf("bytes=%v-%v", offset, offset+length-1))
 
 	resp, err := http.DefaultClient.Do(req)
