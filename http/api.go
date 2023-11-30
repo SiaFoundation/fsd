@@ -74,7 +74,6 @@ func (as *apiServer) handlePin(jc jape.Context) {
 	case 1:
 		prefix := c.Prefix()
 		opts.CIDBuilder = cid.V1Builder{Codec: prefix.Codec, MhType: prefix.MhType, MhLength: prefix.MhLength}
-		opts.RawLeaves = true
 	case 0:
 		opts.CIDBuilder = cid.V0Builder{}
 	}
@@ -95,7 +94,6 @@ func (as *apiServer) handleUpload(jc jape.Context) {
 		opts.CIDBuilder = cid.V0Builder{}
 	case 1:
 		opts.CIDBuilder = cid.V1Builder{Codec: uint64(multicodec.DagPb), MhType: multihash.SHA2_256}
-		opts.RawLeaves = true
 	}
 
 	if err := jc.DecodeForm("rawLeaves", &opts.RawLeaves); err != nil {
