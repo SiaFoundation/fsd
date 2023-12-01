@@ -195,7 +195,16 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 	}
 
 	for _, p := range cfg.Peers {
-		host.Peerstore().AddAddrs(p.ID, p.Addresses, peerstore.PermanentAddrTTL)
+		mh := make([]multiaddr.Multiaddr, 0, len(p.Addresses))
+		for _, addr := range p.Addresses {
+			maddr, err := multiaddr.NewMultiaddr(addr)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse multiaddr %q: %w", addr, err)
+			}
+			mh = append(mh, maddr)
+		}
+
+		host.Peerstore().AddAddrs(p.ID, mh, peerstore.PermanentAddrTTL)
 	}
 
 	return &Node{

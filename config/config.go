@@ -3,7 +3,6 @@ package config
 import (
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/multiformats/go-multiaddr"
 )
 
 type (
@@ -36,8 +35,8 @@ type (
 
 	// IPFSPeer contains the configuration for additional IPFS peers
 	IPFSPeer struct {
-		ID        peer.ID               `yaml:"id"`
-		Addresses []multiaddr.Multiaddr `yaml:"addresses"`
+		ID        peer.ID  `yaml:"id"`
+		Addresses []string `yaml:"addresses"`
 	}
 
 	// IPFS contains the configuration for the IPFS node
