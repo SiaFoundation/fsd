@@ -1,6 +1,10 @@
 package config
 
-import "github.com/ipfs/go-cid"
+import (
+	"github.com/ipfs/go-cid"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/multiformats/go-multiaddr"
+)
 
 type (
 	// Renterd contains the address, password, and bucket on the renterd worker
@@ -30,11 +34,18 @@ type (
 		Fetch             RemoteFetch `yaml:"fetch"`
 	}
 
+	// IPFSPeer contains the configuration for additional IPFS peers
+	IPFSPeer struct {
+		ID        peer.ID               `yaml:"id"`
+		Addresses []multiaddr.Multiaddr `yaml:"addresses"`
+	}
+
 	// IPFS contains the configuration for the IPFS node
 	IPFS struct {
 		PrivateKey        string      `yaml:"privateKey"`
 		ListenAddresses   []string    `yaml:"listenAddresses"`
 		AnnounceAddresses []string    `yaml:"announceAddresses"`
+		Peers             []IPFSPeer  `yaml:"peers"`
 		Gateway           HTTPGateway `yaml:"gateway"`
 	}
 

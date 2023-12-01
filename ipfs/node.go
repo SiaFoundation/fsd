@@ -24,6 +24,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/multiformats/go-multiaddr"
 	"go.sia.tech/fsd/config"
@@ -110,9 +111,19 @@ func (n *Node) PeerID() peer.ID {
 	return n.frt.Host().ID()
 }
 
+// Provide broadcasts a CID to the network
+func (n *Node) Provide(c cid.Cid) error {
+	return n.provider.Provide(c)
+}
+
 // Peers returns the list of peers in the routing table
 func (n *Node) Peers() []peer.ID {
-	return n.frt.Host().Network().Peers()
+	return n.host.Peerstore().Peers()
+}
+
+// AddPeer adds a peer to the peerstore
+func (n *Node) AddPeer(addr peer.AddrInfo) {
+	n.host.Peerstore().AddAddrs(addr.ID, addr.Addrs, peerstore.PermanentAddrTTL)
 }
 
 func mustParsePeer(s string) peer.AddrInfo {
@@ -121,11 +132,6 @@ func mustParsePeer(s string) peer.AddrInfo {
 		panic(err)
 	}
 	return *info
-}
-
-// Provide broadcasts a CID to the network
-func (n *Node) Provide(c cid.Cid) error {
-	return n.provider.Provide(c)
 }
 
 // NewNode creates a new IPFS node
@@ -141,6 +147,7 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 		libp2p.Identity(privateKey),
 		libp2p.EnableRelay(),
 		libp2p.ResourceManager(new(network.NullResourceManager)),
+		libp2p.DefaultPeerstore,
 		libp2p.DefaultTransports,
 	}
 
@@ -169,6 +176,7 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 		dht.BucketSize(20),
 		dht.Datastore(ds),
 	}
+
 	frt, err := fullrt.NewFullRT(host, dht.DefaultPrefix, fullrt.DHTOption(dhtOpts...))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fullrt: %w", err)
@@ -184,6 +192,10 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 	prov, err := provider.New(ds, provider.KeyProvider(bsp), provider.Online(frt))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create provider: %w", err)
+	}
+
+	for _, p := range cfg.Peers {
+		host.Peerstore().AddAddrs(p.ID, p.Addresses, peerstore.PermanentAddrTTL)
 	}
 
 	return &Node{
