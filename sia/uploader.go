@@ -40,7 +40,7 @@ func (ufs *UnixFileUploader) GetMany(ctx context.Context, c []cid.Cid) <-chan *f
 	panic("not implemented")
 }
 
-func (ufs *UnixFileUploader) uploadProtoNode(ctx context.Context, node *merkledag.ProtoNode) (data, metadata []byte, _ error) {
+func (ufs *UnixFileUploader) uploadProtoNode(_ context.Context, node *merkledag.ProtoNode) (data, metadata []byte, _ error) {
 	fsNode, err := unixfs.ExtractFSNode(node)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to extract fs node: %w", err)
@@ -70,7 +70,7 @@ func (ufs *UnixFileUploader) uploadProtoNode(ctx context.Context, node *merkleda
 	return
 }
 
-func (ufs *UnixFileUploader) uploadRawNode(ctx context.Context, node *merkledag.RawNode) (data, metadata []byte, _ error) {
+func (ufs *UnixFileUploader) uploadRawNode(_ context.Context, node *merkledag.RawNode) (data, metadata []byte, _ error) {
 	return node.RawData(), nil, nil
 }
 

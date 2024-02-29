@@ -1,6 +1,7 @@
 package sia
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -14,6 +15,9 @@ import (
 	"github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
 	"go.sia.tech/fsd/config"
+	"go.sia.tech/renterd/api"
+	"go.sia.tech/renterd/bus"
+	"go.sia.tech/renterd/worker"
 	"go.uber.org/zap"
 )
 
@@ -24,9 +28,10 @@ type (
 	// file is stored on the renterd node in one piece and the offsets for
 	// rebuilding the block are stored in the database.
 	RenterdBlockStore struct {
-		store   Store
-		log     *zap.Logger
-		renterd config.Renterd
+		store        Store
+		log          *zap.Logger
+		workerClient *worker.Client
+		busClient    *bus.Client
 	}
 )
 
@@ -43,7 +48,8 @@ func (bs *RenterdBlockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 }
 
 func (bs *RenterdBlockStore) downloadBlock(ctx context.Context, cm Block) (blocks.Block, error) {
-	var data, metadata []byte
+	dataBuf := bytes.NewBuffer(make([]byte, 0, cm.Data.BlockSize))
+	metadataBuf := bytes.NewBuffer(make([]byte, 0, cm.Metadata.Length))
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -55,8 +61,12 @@ func (bs *RenterdBlockStore) downloadBlock(ctx context.Context, cm Block) (block
 		go func() {
 			defer wg.Done()
 
-			var err error
-			data, err = downloadPartialData(ctx, bs.renterd, cm.Data.Bucket, cm.Data.Key, cm.Data.Offset, cm.Data.BlockSize)
+			err := bs.workerClient.DownloadObject(ctx, dataBuf, cm.Data.Bucket, cm.Data.Key, api.DownloadObjectOptions{
+				Range: api.DownloadRange{
+					Offset: int64(cm.Data.Offset),
+					Length: int64(cm.Data.BlockSize),
+				},
+			})
 			if err != nil {
 				bs.log.Error("failed to download block data", zap.Error(err), zap.Stringer("cid", cm.CID))
 				errCh <- fmt.Errorf("failed to download block data: %w", err)
@@ -69,8 +79,12 @@ func (bs *RenterdBlockStore) downloadBlock(ctx context.Context, cm Block) (block
 		go func() {
 			defer wg.Done()
 
-			var err error
-			metadata, err = downloadPartialData(ctx, bs.renterd, cm.Metadata.Bucket, cm.Metadata.Key, cm.Metadata.Offset, cm.Metadata.Length)
+			err := bs.workerClient.DownloadObject(ctx, metadataBuf, cm.Metadata.Bucket, cm.Metadata.Key, api.DownloadObjectOptions{
+				Range: api.DownloadRange{
+					Offset: int64(cm.Metadata.Offset),
+					Length: int64(cm.Metadata.Length),
+				},
+			})
 			if err != nil {
 				bs.log.Error("failed to download block metadata", zap.Error(err), zap.Stringer("cid", cm.CID))
 				errCh <- fmt.Errorf("failed to download block metadata: %w", err)
@@ -88,6 +102,7 @@ func (bs *RenterdBlockStore) downloadBlock(ctx context.Context, cm Block) (block
 		return nil, err
 	}
 
+	data, metadata := dataBuf.Bytes(), metadataBuf.Bytes()
 	if n := len(data); n != int(cm.Data.BlockSize) {
 		return nil, fmt.Errorf("unexpected data size: requested %d got %d", cm.Data.BlockSize, n)
 	} else if n := len(metadata); n != int(cm.Metadata.Length) {
@@ -191,8 +206,10 @@ func (bs *RenterdBlockStore) HashOnRead(enabled bool) {
 // badger.Store and a renterd node
 func NewBlockStore(store Store, renterd config.Renterd, log *zap.Logger) *RenterdBlockStore {
 	return &RenterdBlockStore{
-		store:   store,
-		renterd: renterd,
-		log:     log,
+		store: store,
+		log:   log,
+
+		workerClient: worker.NewClient(renterd.WorkerAddress, renterd.WorkerPassword),
+		busClient:    bus.NewClient(renterd.BusAddress, renterd.BusPassword),
 	}
 }
