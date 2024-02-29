@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/ipfs/boxo/bitswap"
 	bnetwork "github.com/ipfs/boxo/bitswap/network"
@@ -22,9 +23,9 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/fullrt"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
-	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
+	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/multiformats/go-multiaddr"
 	"go.sia.tech/fsd/config"
@@ -141,12 +142,27 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 		return nil, fmt.Errorf("failed to create connection manager: %w", err)
 	}
 
+	scalingLimits := rcmgr.DefaultLimits
+	libp2p.SetDefaultServiceLimits(&scalingLimits)
+	scaledDefaultLimits := scalingLimits.AutoScale()
+	resourceCfg := rcmgr.PartialLimitConfig{
+		System: rcmgr.ResourceLimits{
+			StreamsOutbound: rcmgr.Unlimited,
+		},
+	}
+	limits := resourceCfg.Build(scaledDefaultLimits)
+	limiter := rcmgr.NewFixedLimiter(limits)
+	rm, err := rcmgr.NewResourceManager(limiter, rcmgr.WithMetricsDisabled())
+	if err != nil {
+		panic(err)
+	}
+
 	opts := []libp2p.Option{
 		libp2p.ListenAddrStrings(cfg.ListenAddresses...),
 		libp2p.ConnectionManager(cmgr),
 		libp2p.Identity(privateKey),
 		libp2p.EnableRelay(),
-		libp2p.ResourceManager(new(network.NullResourceManager)),
+		libp2p.ResourceManager(rm),
 		libp2p.DefaultPeerstore,
 		libp2p.DefaultTransports,
 	}
@@ -174,7 +190,11 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 		dht.Mode(dht.ModeServer),
 		dht.BootstrapPeers(bootstrapPeers...),
 		dht.BucketSize(20),
+		dht.Concurrency(30),
 		dht.Datastore(ds),
+		dht.QueryFilter(dht.PublicQueryFilter),
+		dht.RoutingTableFilter(dht.PublicRoutingTableFilter),
+		dht.RoutingTablePeerDiversityFilter(dht.NewRTPeerDiversityFilter(host, 2, 3)),
 	}
 
 	frt, err := fullrt.NewFullRT(host, dht.DefaultPrefix, fullrt.DHTOption(dhtOpts...))
@@ -182,14 +202,26 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 		return nil, fmt.Errorf("failed to create fullrt: %w", err)
 	}
 
+	bitswapOpts := []bitswap.Option{
+		bitswap.EngineBlockstoreWorkerCount(600),
+		bitswap.TaskWorkerCount(600),
+		bitswap.MaxOutstandingBytesPerPeer(int(5 << 20)),
+	}
+
 	bitswapNet := bnetwork.NewFromIpfsHost(host, frt)
-	bitswap := bitswap.New(ctx, bitswapNet, bs)
+	bitswap := bitswap.New(ctx, bitswapNet, bs, bitswapOpts...)
 
 	blockServ := blockservice.New(bs, bitswap)
 	dagService := merkledag.NewDAGService(blockServ)
 	bsp := provider.NewBlockstoreProvider(bs)
 
-	prov, err := provider.New(ds, provider.KeyProvider(bsp), provider.Online(frt))
+	providerOpts := []provider.Option{
+		provider.KeyProvider(bsp),
+		provider.Online(frt),
+		provider.ReproviderInterval(10 * time.Hour),
+	}
+
+	prov, err := provider.New(ds, providerOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create provider: %w", err)
 	}
