@@ -31,9 +31,10 @@ type (
 		b   []byte
 		err error
 
-		key      string
-		priority int
-		index    int
+		key       string
+		priority  int
+		index     int
+		timestamp time.Time
 	}
 
 	priorityQueue []*blockResponse
@@ -60,7 +61,10 @@ type (
 func (h priorityQueue) Len() int { return len(h) }
 
 func (h priorityQueue) Less(i, j int) bool {
-	return h[i].priority < h[j].priority
+	if h[i].priority != h[j].priority {
+		return h[i].priority < h[j].priority
+	}
+	return h[i].timestamp.Before(h[j].timestamp)
 }
 
 func (h priorityQueue) Swap(i, j int) {
@@ -156,9 +160,10 @@ func (bd *BlockDownloader) getResponse(c cid.Cid, priority int) *blockResponse {
 		return task
 	}
 	task := &blockResponse{
-		key:      key,
-		priority: priority,
-		ch:       make(chan struct{}),
+		key:       key,
+		priority:  priority,
+		timestamp: time.Now(),
+		ch:        make(chan struct{}),
 	}
 	bd.cache.Add(key, task)
 	heap.Push(bd.queue, task)
