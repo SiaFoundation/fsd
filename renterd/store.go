@@ -9,6 +9,7 @@ import (
 
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
+	format "github.com/ipfs/go-ipld-format"
 	"go.sia.tech/renterd/api"
 	"go.sia.tech/renterd/bus"
 	"go.sia.tech/renterd/worker"
@@ -72,7 +73,14 @@ func (bs *BlockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 
 // Get returns a block by CID
 func (bs *BlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
-	return bs.downloader.Get(ctx, c)
+	block, err := bs.downloader.Get(ctx, c)
+	if err != nil {
+		if !strings.Contains(err.Error(), "block not found") {
+			bs.log.Error("failed to download block", zap.Stringer("cid", c), zap.Error(err))
+		}
+		return nil, format.ErrNotFound{Cid: c}
+	}
+	return block, nil
 }
 
 // GetSize returns the CIDs mapped BlockSize
@@ -84,7 +92,7 @@ func (bs *BlockStore) GetSize(ctx context.Context, c cid.Cid) (int, error) {
 		if !strings.Contains(err.Error(), "object not found") {
 			log.Debug("failed to get block size", zap.Error(err))
 		}
-		return 0, fmt.Errorf("failed to get block size: %w", err)
+		return 0, format.ErrNotFound{Cid: c}
 	}
 	log.Debug("got block size", zap.Int("size", int(stat.Object.Size)))
 	return int(stat.Object.Size), nil

@@ -97,6 +97,9 @@ func (br *blockResponse) block(ctx context.Context, c cid.Cid) (blocks.Block, er
 		return nil, ctx.Err()
 	case <-br.ch:
 	}
+	if br.err != nil {
+		return nil, br.err
+	}
 	return blocks.NewBlockWithCid(br.b, c)
 }
 

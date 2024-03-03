@@ -26,6 +26,7 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/multiformats/go-multiaddr"
 	"go.sia.tech/fsd/config"
+	"go.uber.org/zap"
 )
 
 var bootstrapPeers = []peer.AddrInfo{
@@ -39,6 +40,7 @@ var bootstrapPeers = []peer.AddrInfo{
 
 // A Node is a minimal IPFS node
 type Node struct {
+	log  *zap.Logger
 	host host.Host
 	frt  *fullrt.FullRT
 
@@ -97,7 +99,7 @@ func mustParsePeer(s string) peer.AddrInfo {
 }
 
 // NewNode creates a new IPFS node
-func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds datastore.Batching, bs blockstore.Blockstore) (*Node, error) {
+func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds datastore.Batching, bs blockstore.Blockstore, log *zap.Logger) (*Node, error) {
 	cmgr, err := connmgr.NewConnManager(600, 900)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create connection manager: %w", err)
@@ -200,6 +202,7 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 	}
 
 	return &Node{
+		log:          log,
 		frt:          frt,
 		host:         host,
 		bitswap:      bitswap,

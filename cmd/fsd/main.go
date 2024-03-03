@@ -169,7 +169,7 @@ func main() {
 		log.Fatal("failed to create blockstore", zap.Error(err))
 	}
 
-	ipfs, err := ipfs.NewNode(ctx, privateKey, cfg.IPFS, ds, bs)
+	ipfs, err := ipfs.NewNode(ctx, privateKey, cfg.IPFS, ds, bs, log.Named("ipfs"))
 	if err != nil {
 		log.Fatal("failed to start ipfs node", zap.Error(err))
 	}

@@ -123,7 +123,8 @@ func (is *ipfsGatewayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	is.log.Info("serving", zap.Stringer("cid", c), zap.Strings("path", path))
+	log := is.log.Named("serve").With(zap.Stringer("cid", c), zap.Strings("path", path))
+	log.Info("serving content")
 
 	rsc, err := is.ipfs.DownloadUnixFile(ctx, c, path)
 	if err != nil {
