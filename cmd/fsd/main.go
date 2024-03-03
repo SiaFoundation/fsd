@@ -154,11 +154,10 @@ func main() {
 	workerClient := worker.NewClient(cfg.Renterd.WorkerAddress, cfg.Renterd.WorkerPassword)
 	busClient := bus.NewClient(cfg.Renterd.BusAddress, cfg.Renterd.BusPassword)
 
-	bd, err := downloader.NewBlockDownloader(cfg.Renterd.Bucket, cfg.BlockStore.CacheSize, workerClient, log.Named("downloader"))
+	bd, err := downloader.NewBlockDownloader(cfg.Renterd.Bucket, cfg.BlockStore.CacheSize, cfg.BlockStore.MaxConcurrent, workerClient, log.Named("downloader"))
 	if err != nil {
 		log.Fatal("failed to create block downloader", zap.Error(err))
 	}
-	bd.StartWorkers(ctx, cfg.BlockStore.MaxConcurrent)
 
 	bs, err := renterd.NewBlockStore(
 		renterd.WithBucket(cfg.Renterd.Bucket),

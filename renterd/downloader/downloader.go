@@ -193,23 +193,17 @@ func (bd *BlockDownloader) Get(ctx context.Context, c cid.Cid) (blocks.Block, er
 	return bd.getResponse(c, downloadPriorityHigh).block(ctx, c)
 }
 
-// StartWorkers starts n workers to download blocks.
-func (bd *BlockDownloader) StartWorkers(ctx context.Context, n int) {
-	for i := 0; i < n; i++ {
-		go bd.downloadWorker(ctx, i)
-	}
-}
-
 func cidKey(c cid.Cid) string {
 	return cid.NewCidV1(c.Type(), c.Hash()).String()
 }
 
 // NewBlockDownloader creates a new BlockDownloader.
-func NewBlockDownloader(bucket string, cacheSize int, workerClient *worker.Client, log *zap.Logger) (*BlockDownloader, error) {
+func NewBlockDownloader(bucket string, cacheSize, workers int, workerClient *worker.Client, log *zap.Logger) (*BlockDownloader, error) {
 	cache, err := lru.New2Q[string, *blockResponse](cacheSize)
 	if err != nil {
 		return nil, err
 	}
+
 	bd := &BlockDownloader{
 		workerClient: workerClient,
 		log:          log,
@@ -220,5 +214,8 @@ func NewBlockDownloader(bucket string, cacheSize int, workerClient *worker.Clien
 		bucket: bucket,
 	}
 	heap.Init(bd.queue)
+	for i := 0; i < workers; i++ {
+		go bd.downloadWorker(context.Background(), i)
+	}
 	return bd, nil
 }
