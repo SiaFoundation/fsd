@@ -176,17 +176,15 @@ func (bd *BlockDownloader) downloadWorker(ctx context.Context, n int) {
 		case <-bd.ch:
 		}
 
-		for {
-			bd.mu.Lock()
-			if bd.queue.Len() == 0 {
-				bd.mu.Unlock()
-				break
-			}
-
-			task := heap.Pop(bd.queue).(*blockResponse)
+		bd.mu.Lock()
+		if bd.queue.Len() == 0 {
 			bd.mu.Unlock()
-			bd.doDownloadTask(task, log.With(zap.String("key", task.key)))
+			continue
 		}
+
+		task := heap.Pop(bd.queue).(*blockResponse)
+		bd.mu.Unlock()
+		bd.doDownloadTask(task, log.With(zap.String("key", task.key)))
 	}
 }
 
