@@ -180,7 +180,7 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 	providerOpts := []provider.Option{
 		provider.KeyProvider(provider.NewBlockstoreProvider(bs)),
 		provider.Online(frt),
-		provider.ReproviderInterval(6 * time.Hour),
+		provider.ReproviderInterval(10 * time.Hour),
 	}
 
 	prov, err := provider.New(ds, providerOpts...)

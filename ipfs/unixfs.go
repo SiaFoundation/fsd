@@ -105,7 +105,7 @@ func (n *Node) UploadUnixFile(ctx context.Context, r io.Reader, opts ...UnixFSOp
 	}
 
 	params := ihelpers.DagBuilderParams{
-		Dagserv:    merkledag.NewDAGService(n.blockService),
+		Dagserv:    n.dagService,
 		CidBuilder: opt.CIDBuilder,
 		RawLeaves:  opt.RawLeaves,
 		Maxlinks:   opt.MaxLinks,
@@ -117,5 +117,12 @@ func (n *Node) UploadUnixFile(ctx context.Context, r io.Reader, opts ...UnixFSOp
 		return nil, fmt.Errorf("failed to create dag builder: %w", err)
 	}
 
-	return balanced.Layout(db)
+	rootNode, err := balanced.Layout(db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create balanced layout: %w", err)
+	} else if err := n.provider.Provide(rootNode.Cid()); err != nil {
+		return nil, fmt.Errorf("failed to provide root node: %w", err)
+	}
+
+	return rootNode, nil
 }
