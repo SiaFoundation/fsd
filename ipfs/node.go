@@ -3,8 +3,6 @@ package ipfs
 import (
 	"context"
 	"fmt"
-	"io"
-	"strings"
 	"time"
 
 	"github.com/ipfs/boxo/bitswap"
@@ -12,7 +10,6 @@ import (
 	"github.com/ipfs/boxo/blockservice"
 	"github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/boxo/ipld/merkledag"
-	fsio "github.com/ipfs/boxo/ipld/unixfs/io"
 	"github.com/ipfs/boxo/provider"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
@@ -45,7 +42,6 @@ type Node struct {
 	host host.Host
 	frt  *fullrt.FullRT
 
-	blockstore   blockstore.Blockstore
 	blockService blockservice.BlockService
 	dagService   format.DAGService
 	bitswap      *bitswap.Bitswap
@@ -67,44 +63,9 @@ func (n *Node) GetBlock(ctx context.Context, c cid.Cid) (blocks.Block, error) {
 	return n.blockService.GetBlock(ctx, c)
 }
 
-// DownloadCID downloads a CID from IPFS
-func (n *Node) DownloadCID(ctx context.Context, c cid.Cid, path []string) (io.ReadSeekCloser, error) {
-	dagSess := merkledag.NewSession(ctx, n.dagService)
-	rootNode, err := dagSess.Get(ctx, c)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get root node: %w", err)
-	}
-
-	var traverse func(context.Context, format.Node, []string) (format.Node, error)
-	traverse = func(ctx context.Context, parent format.Node, path []string) (format.Node, error) {
-		if len(path) == 0 {
-			return parent, nil
-		}
-
-		childLink, rem, err := parent.Resolve(path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve path %q: %w", strings.Join(path, "/"), err)
-		}
-
-		switch v := childLink.(type) {
-		case *format.Link:
-			childNode, err := dagSess.Get(ctx, v.Cid)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get child node %q: %w", v.Cid, err)
-			}
-			return traverse(ctx, childNode, rem)
-		default:
-			return nil, fmt.Errorf("expected link node, got %T", childLink)
-		}
-	}
-
-	node, err := traverse(ctx, rootNode, path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to traverse path: %w", err)
-	}
-
-	dr, err := fsio.NewDagReader(ctx, node, dagSess)
-	return dr, err
+// HasBlock checks if a block is locally pinned
+func (n *Node) HasBlock(ctx context.Context, c cid.Cid) (bool, error) {
+	return n.blockService.Blockstore().Has(ctx, c)
 }
 
 // PeerID returns the peer ID of the node
@@ -213,12 +174,11 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 
 	blockServ := blockservice.New(bs, bitswap)
 	dagService := merkledag.NewDAGService(blockServ)
-	bsp := provider.NewBlockstoreProvider(bs)
 
 	providerOpts := []provider.Option{
-		provider.KeyProvider(bsp),
+		provider.KeyProvider(provider.NewBlockstoreProvider(bs)),
 		provider.Online(frt),
-		provider.ReproviderInterval(10 * time.Hour),
+		provider.ReproviderInterval(6 * time.Hour),
 	}
 
 	prov, err := provider.New(ds, providerOpts...)
@@ -242,7 +202,6 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 	return &Node{
 		frt:          frt,
 		host:         host,
-		blockstore:   bs,
 		bitswap:      bitswap,
 		blockService: blockServ,
 		dagService:   dagService,

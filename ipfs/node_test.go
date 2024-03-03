@@ -18,7 +18,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"go.sia.tech/fsd/config"
 	"go.sia.tech/fsd/ipfs"
-	"go.sia.tech/fsd/persist/badger"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 	"lukechampine.com/frand"
@@ -139,12 +138,6 @@ func TestDownload(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	store, err := badger.OpenDatabase(filepath.Join(t.TempDir(), "fsd.badgerdb"), log.Named("badger"))
-	if err != nil {
-		log.Fatal("failed to open badger database", zap.Error(err))
-	}
-	defer store.Close()
-
 	ds, err := levelds.NewDatastore(filepath.Join(t.TempDir(), "fsdds.leveldb"), nil)
 	if err != nil {
 		log.Fatal("failed to open leveldb datastore", zap.Error(err))
@@ -172,7 +165,7 @@ func TestDownload(t *testing.T) {
 	downloadCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
-	r, err := node.DownloadCID(downloadCtx, c, path)
+	r, err := node.DownloadUnixFile(downloadCtx, c, path)
 	if err != nil {
 		t.Fatal(err)
 	}

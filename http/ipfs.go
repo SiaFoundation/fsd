@@ -1,22 +1,21 @@
 package http
 
 import (
+	"context"
 	"errors"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/ipfs/go-cid"
 	"go.sia.tech/fsd/config"
 	"go.sia.tech/fsd/ipfs"
-	"go.sia.tech/fsd/sia"
 	"go.uber.org/zap"
 )
 
 type ipfsGatewayServer struct {
 	ipfs *ipfs.Node
-	sia  *sia.Node
 	log  *zap.Logger
 
 	config config.Config
@@ -76,14 +75,18 @@ func redirectPathCID(w http.ResponseWriter, r *http.Request, c cid.Cid, path []s
 	http.Redirect(w, r, u.String(), http.StatusMovedPermanently)
 }
 
-func (is *ipfsGatewayServer) allowRemoteFetch(c cid.Cid) bool {
-	if !is.config.IPFS.Gateway.Fetch.Enabled {
-		return false // deny all
-	} else if len(is.config.IPFS.Gateway.Fetch.AllowList) == 0 {
-		return true // allow all
+func (is *ipfsGatewayServer) fetchAllowed(ctx context.Context, c cid.Cid) bool {
+	// check if the file is locally pinned
+	if has, err := is.ipfs.HasBlock(ctx, c); err != nil {
+		is.log.Error("failed to check block existence", zap.Error(err))
+	} else if has {
+		return true
 	}
 
-	// allowlist check
+	if !is.config.IPFS.Gateway.Fetch.Enabled {
+		return false // deny all
+	}
+
 	for _, match := range is.config.IPFS.Gateway.Fetch.AllowList {
 		if c.Equals(match) {
 			return true
@@ -112,34 +115,28 @@ func (is *ipfsGatewayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !is.fetchAllowed(ctx, c) {
+		http.Error(w, "", http.StatusNotFound)
+		is.log.Info("remote fetch denied", zap.Stringer("cid", c))
+		return
+	}
+
 	is.log.Info("serving", zap.Stringer("cid", c), zap.Strings("path", path))
 
-	// TODO: support paths in Sia proxied downloads
-	err = is.sia.ProxyHTTPDownload(c, r, w)
-	if errors.Is(err, sia.ErrNotFound) && is.allowRemoteFetch(c) {
-		is.log.Info("downloading from ipfs", zap.Stringer("cid", c), zap.Strings("path", path))
-		r, err := is.ipfs.DownloadCID(ctx, c, path)
-		if err != nil {
-			http.Error(w, "", http.StatusNotFound)
-			is.log.Error("failed to download cid", zap.Error(err))
-			return
-		}
-		defer r.Close()
-
-		io.Copy(w, r)
-	} else if errors.Is(err, sia.ErrNotFound) {
+	rsc, err := is.ipfs.DownloadUnixFile(ctx, c, path)
+	if err != nil {
 		http.Error(w, "", http.StatusNotFound)
-	} else if err != nil {
-		http.Error(w, "", http.StatusInternalServerError)
-		is.log.Error("failed to get block", zap.Error(err))
+		is.log.Error("failed to download cid", zap.Error(err))
+		return
 	}
+	defer rsc.Close()
+	http.ServeContent(w, r, "", time.Now(), rsc)
 }
 
 // NewIPFSGatewayHandler creates a new http.Handler for the IPFS gateway.
-func NewIPFSGatewayHandler(ipfs *ipfs.Node, sia *sia.Node, cfg config.Config, log *zap.Logger) http.Handler {
+func NewIPFSGatewayHandler(ipfs *ipfs.Node, cfg config.Config, log *zap.Logger) http.Handler {
 	return &ipfsGatewayServer{
 		ipfs: ipfs,
-		sia:  sia,
 		log:  log,
 
 		config: cfg,

@@ -1,0 +1,115 @@
+package ipfs
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"strings"
+
+	chunker "github.com/ipfs/boxo/chunker"
+	"github.com/ipfs/boxo/ipld/merkledag"
+	"github.com/ipfs/boxo/ipld/unixfs/importer/balanced"
+	ihelpers "github.com/ipfs/boxo/ipld/unixfs/importer/helpers"
+	fsio "github.com/ipfs/boxo/ipld/unixfs/io"
+	"github.com/ipfs/go-cid"
+	format "github.com/ipfs/go-ipld-format"
+)
+
+type (
+	unixFSOptions struct {
+		CIDBuilder cid.Builder
+		RawLeaves  bool
+		MaxLinks   int
+		BlockSize  int64
+	}
+	UnixFSOption func(*unixFSOptions)
+)
+
+func UnixFSWithCIDBuilder(b cid.Builder) UnixFSOption {
+	return func(u *unixFSOptions) {
+		u.CIDBuilder = b
+	}
+}
+
+func UnixFSWithRawLeaves(b bool) UnixFSOption {
+	return func(u *unixFSOptions) {
+		u.RawLeaves = b
+	}
+}
+
+func UnixFSWithMaxLinks(b int) UnixFSOption {
+	return func(u *unixFSOptions) {
+		u.MaxLinks = b
+	}
+}
+
+func UnixFSWithBlockSize(b int64) UnixFSOption {
+	return func(u *unixFSOptions) {
+		u.BlockSize = b
+	}
+}
+
+// DownloadUnixFile downloads a UnixFS CID from IPFS
+func (n *Node) DownloadUnixFile(ctx context.Context, c cid.Cid, path []string) (io.ReadSeekCloser, error) {
+	dagSess := merkledag.NewSession(ctx, n.dagService)
+	rootNode, err := dagSess.Get(ctx, c)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get root node: %w", err)
+	}
+
+	var traverse func(context.Context, format.Node, []string) (format.Node, error)
+	traverse = func(ctx context.Context, parent format.Node, path []string) (format.Node, error) {
+		if len(path) == 0 {
+			return parent, nil
+		}
+
+		childLink, rem, err := parent.Resolve(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve path %q: %w", strings.Join(path, "/"), err)
+		}
+
+		switch v := childLink.(type) {
+		case *format.Link:
+			childNode, err := dagSess.Get(ctx, v.Cid)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get child node %q: %w", v.Cid, err)
+			}
+			return traverse(ctx, childNode, rem)
+		default:
+			return nil, fmt.Errorf("expected link node, got %T", childLink)
+		}
+	}
+
+	node, err := traverse(ctx, rootNode, path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to traverse path: %w", err)
+	}
+
+	dr, err := fsio.NewDagReader(ctx, node, dagSess)
+	return dr, err
+}
+
+func (n *Node) UploadUnixFile(ctx context.Context, r io.Reader, opts ...UnixFSOption) (format.Node, error) {
+	opt := unixFSOptions{
+		MaxLinks:  ihelpers.DefaultLinksPerBlock,
+		BlockSize: chunker.DefaultBlockSize,
+	}
+	for _, o := range opts {
+		o(&opt)
+	}
+
+	params := ihelpers.DagBuilderParams{
+		Dagserv:    merkledag.NewDAGService(n.blockService),
+		CidBuilder: opt.CIDBuilder,
+		RawLeaves:  opt.RawLeaves,
+		Maxlinks:   opt.MaxLinks,
+	}
+
+	spl := chunker.NewSizeSplitter(r, opt.BlockSize)
+	db, err := params.New(spl)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dag builder: %w", err)
+	}
+
+	return balanced.Layout(db)
+}
