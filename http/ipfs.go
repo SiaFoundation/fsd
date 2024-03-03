@@ -83,14 +83,16 @@ func (is *ipfsGatewayServer) fetchAllowed(ctx context.Context, c cid.Cid) bool {
 		return true
 	}
 
-	if !is.config.IPFS.Gateway.Fetch.Enabled {
-		return false // deny all
-	}
-
-	for _, match := range is.config.IPFS.Gateway.Fetch.AllowList {
-		if c.Equals(match) {
-			return true
+	if is.config.IPFS.Gateway.Fetch.Enabled {
+		if len(is.config.IPFS.Gateway.Fetch.AllowList) > 0 {
+			for _, match := range is.config.IPFS.Gateway.Fetch.AllowList {
+				if c.Equals(match) {
+					return true
+				}
+			}
+			return false
 		}
+		return true
 	}
 	return false
 }
