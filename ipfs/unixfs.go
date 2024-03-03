@@ -22,27 +22,32 @@ type (
 		MaxLinks   int
 		BlockSize  int64
 	}
+	// A UnixFSOption sets options for the UnixFS importer
 	UnixFSOption func(*unixFSOptions)
 )
 
+// UnixFSWithCIDBuilder sets the CID builder for the UnixFS importer
 func UnixFSWithCIDBuilder(b cid.Builder) UnixFSOption {
 	return func(u *unixFSOptions) {
 		u.CIDBuilder = b
 	}
 }
 
+// UnixFSWithRawLeaves sets the raw leaves option for the UnixFS importer
 func UnixFSWithRawLeaves(b bool) UnixFSOption {
 	return func(u *unixFSOptions) {
 		u.RawLeaves = b
 	}
 }
 
+// UnixFSWithMaxLinks sets the maximum number of links per block for the UnixFS importer
 func UnixFSWithMaxLinks(b int) UnixFSOption {
 	return func(u *unixFSOptions) {
 		u.MaxLinks = b
 	}
 }
 
+// UnixFSWithBlockSize sets the block size for the UnixFS importer
 func UnixFSWithBlockSize(b int64) UnixFSOption {
 	return func(u *unixFSOptions) {
 		u.BlockSize = b
@@ -89,6 +94,7 @@ func (n *Node) DownloadUnixFile(ctx context.Context, c cid.Cid, path []string) (
 	return dr, err
 }
 
+// UploadUnixFile uploads a UnixFS file to IPFS
 func (n *Node) UploadUnixFile(ctx context.Context, r io.Reader, opts ...UnixFSOption) (format.Node, error) {
 	opt := unixFSOptions{
 		MaxLinks:  ihelpers.DefaultLinksPerBlock,

@@ -179,9 +179,8 @@ func (bs *BlockStore) HashOnRead(enabled bool) {
 // NewBlockStore creates a new blockstore backed by a renterd node
 func NewBlockStore(opts ...Option) (*BlockStore, error) {
 	options := &options{
-		Log:       zap.NewNop(),
-		Bucket:    "ipfs",
-		CacheSize: 1024, // 1GiB assuming 1MiB blocks
+		Log:    zap.NewNop(),
+		Bucket: "ipfs",
 	}
 	for _, opt := range opts {
 		opt(options)

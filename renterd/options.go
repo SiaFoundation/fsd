@@ -7,8 +7,7 @@ import (
 )
 
 type options struct {
-	Bucket    string
-	CacheSize int
+	Bucket string
 
 	Downloader BlockDownloader
 	Worker     *worker.Client
@@ -16,6 +15,7 @@ type options struct {
 	Log        *zap.Logger
 }
 
+// An Option configures a renterd store
 type Option func(*options)
 
 // WithBucket sets the bucket name.
@@ -46,15 +46,9 @@ func WithBus(b *bus.Client) Option {
 	}
 }
 
+// WithDownloader sets the block downloader.
 func WithDownloader(bd BlockDownloader) Option {
 	return func(o *options) {
 		o.Downloader = bd
-	}
-}
-
-// WithCacheSize sets the size of the block cache.
-func WithCacheSize(size int) Option {
-	return func(o *options) {
-		o.CacheSize = size
 	}
 }

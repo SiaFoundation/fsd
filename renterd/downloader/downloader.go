@@ -190,6 +190,7 @@ func (bd *BlockDownloader) downloadWorker(ctx context.Context, n int) {
 	}
 }
 
+// Get returns a block by CID.
 func (bd *BlockDownloader) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
 	return bd.getResponse(c, downloadPriorityHigh).block(ctx, c)
 }
