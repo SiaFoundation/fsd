@@ -134,17 +134,7 @@ func (bd *BlockDownloader) doDownloadTask(task *blockResponse, log *zap.Logger) 
 	}
 
 	// prefetch linked blocks
-	links := pn.Links()
-	if len(links) > 2 {
-		// prioritize first and last linked blocks
-		firstLink := links[0]
-		lastLink := links[len(links)-1]
-		links = links[1 : len(links)-1]
-
-		bd.getResponse(firstLink.Cid, downloadPriorityMedium)
-		bd.getResponse(lastLink.Cid, downloadPriorityMedium)
-	}
-	for _, link := range links {
+	for _, link := range pn.Links() {
 		bd.getResponse(link.Cid, downloadPriorityLow)
 		log.Debug("queued linked blocks", zap.Stringer("cid", link.Cid), zap.String("key", cidKey(link.Cid)))
 	}
@@ -157,6 +147,11 @@ func (bd *BlockDownloader) getResponse(c cid.Cid, priority int) *blockResponse {
 
 	if task, ok := bd.cache.Get(key); ok {
 		bd.log.Debug("cache hit", zap.String("key", key))
+		if task.priority < priority && task.index != -1 {
+			// update the priority if the task is still queued
+			task.priority = priority
+			heap.Fix(bd.queue, task.index)
+		}
 		return task
 	}
 	task := &blockResponse{
