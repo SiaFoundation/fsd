@@ -15,6 +15,7 @@ type (
 		Bucket         string `yaml:"bucket"`
 	}
 
+	// BlockStore configures the blockstore.
 	BlockStore struct {
 		// MaxConcurrent is the maximum number of concurrent block fetches.
 		MaxConcurrent int `yaml:"maxConcurrent"`
