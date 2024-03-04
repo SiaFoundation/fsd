@@ -11,7 +11,6 @@ import (
 	"github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/boxo/ipld/merkledag"
 	"github.com/ipfs/boxo/provider"
-	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	format "github.com/ipfs/go-ipld-format"
@@ -61,8 +60,8 @@ func (n *Node) Close() error {
 }
 
 // GetBlock fetches a block from the IPFS network
-func (n *Node) GetBlock(ctx context.Context, c cid.Cid) (blocks.Block, error) {
-	return n.blockService.GetBlock(ctx, c)
+func (n *Node) GetBlock(ctx context.Context, c cid.Cid) (format.Node, error) {
+	return n.dagService.Get(ctx, c)
 }
 
 // HasBlock checks if a block is locally pinned
@@ -87,7 +86,12 @@ func (n *Node) Peers() []peer.ID {
 
 // AddPeer adds a peer to the peerstore
 func (n *Node) AddPeer(addr peer.AddrInfo) {
-	n.host.Peerstore().AddAddrs(addr.ID, addr.Addrs, peerstore.PermanentAddrTTL)
+	n.host.Peerstore().AddAddrs(addr.ID, addr.Addrs, peerstore.AddressTTL)
+}
+
+// Pin pins a CID
+func (n *Node) Pin(ctx context.Context, c cid.Cid) error {
+	return nil
 }
 
 func mustParsePeer(s string) peer.AddrInfo {

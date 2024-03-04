@@ -97,6 +97,18 @@ func (is *ipfsGatewayServer) fetchAllowed(ctx context.Context, c cid.Cid) bool {
 	return false
 }
 
+func buildDispositionHeader(params url.Values) string {
+	disposition := "inline"
+	if download, ok := params["download"]; ok && strings.EqualFold(download[0], "true") {
+		disposition = "attachment"
+	}
+	if filename, ok := params["filename"]; ok {
+		disposition += "; filename=" + filename[0]
+	}
+	return disposition
+
+}
+
 func (is *ipfsGatewayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -123,17 +135,53 @@ func (is *ipfsGatewayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	query, _ := url.ParseQuery(r.URL.RawQuery)
+
+	w.Header().Set("Content-Disposition", buildDispositionHeader(query))
+
+	var queryFormat string
+	if len(query["format"]) > 0 {
+		queryFormat = query["format"][0]
+	}
+
+	var format string
+	switch {
+	case strings.EqualFold(r.Header.Get("Accept"), "application/vnd.ipld.raw"), strings.EqualFold(queryFormat, "raw"):
+		format = "raw"
+	case strings.EqualFold(r.Header.Get("Accept"), "application/vnd.ipld.car"), strings.EqualFold(queryFormat, "car"):
+		format = "car"
+	}
+
 	log := is.log.Named("serve").With(zap.Stringer("cid", c), zap.Strings("path", path))
 	log.Info("serving content")
 
-	rsc, err := is.ipfs.DownloadUnixFile(ctx, c, path)
-	if err != nil {
-		http.Error(w, "", http.StatusNotFound)
-		is.log.Error("failed to download cid", zap.Error(err))
-		return
+	switch format {
+	case "car":
+		w.Header().Set("Content-Type", "application/vnd.ipld.car")
+		w.WriteHeader(http.StatusNotImplemented)
+	case "raw":
+		w.Header().Set("Content-Type", "application/vnd.ipld.raw")
+
+		ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		defer cancel()
+
+		block, err := is.ipfs.GetBlock(ctx, c)
+		if err != nil {
+			is.log.Error("failed to get block", zap.Error(err))
+			http.Error(w, "unable to get block", http.StatusNotFound)
+			return
+		}
+		w.Write(block.RawData())
+	default:
+		rsc, err := is.ipfs.DownloadUnixFile(ctx, c, path)
+		if err != nil {
+			http.Error(w, "", http.StatusNotFound)
+			is.log.Error("failed to download cid", zap.Error(err))
+			return
+		}
+		defer rsc.Close()
+		http.ServeContent(w, r, "", time.Now(), rsc)
 	}
-	defer rsc.Close()
-	http.ServeContent(w, r, "", time.Now(), rsc)
 }
 
 // NewIPFSGatewayHandler creates a new http.Handler for the IPFS gateway.
