@@ -40,7 +40,7 @@ func (as *apiServer) handleCARPin(jc jape.Context) {
 	}
 }
 
-func (as *apiServer) handlePinCID(jc jape.Context) {
+func (as *apiServer) handleCIDPin(jc jape.Context) {
 	var c cid.Cid
 	var recursive bool
 	if jc.DecodeParam("cid", &c) != nil {
@@ -63,7 +63,7 @@ func NewAPIHandler(ipfs *ipfs.Node, cfg config.Config, log *zap.Logger) http.Han
 	return jape.Mux(map[string]jape.Handler{
 		"POST /api/unixfs/upload": s.handleUnixFSUpload,
 		"PUT /api/car/pin":        s.handleCARPin,
-		"PUT /api/cid/:cid/pin":   s.handlePinCID,
+		"PUT /api/cid/:cid/pin":   s.handleCIDPin,
 		"GET /api/peers":          s.handleListPeers,
 		"PUT /api/peers":          s.handleAddPeer,
 	})
