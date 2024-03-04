@@ -73,9 +73,6 @@ func (bs *BlockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 
 // Get returns a block by CID
 func (bs *BlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer cancel()
-
 	block, err := bs.downloader.Get(ctx, c)
 	if err != nil {
 		if !strings.Contains(err.Error(), "block not found") {

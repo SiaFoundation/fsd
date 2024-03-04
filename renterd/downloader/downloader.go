@@ -104,9 +104,6 @@ func (br *blockResponse) block(ctx context.Context, c cid.Cid) (blocks.Block, er
 }
 
 func (bd *BlockDownloader) doDownloadTask(task *blockResponse, log *zap.Logger) {
-	defer func() {
-		close(task.ch)
-	}()
 	log.Debug("downloading block")
 	start := time.Now()
 	blockBuf := bytes.NewBuffer(make([]byte, 0, 1<<20))
@@ -121,10 +118,12 @@ func (bd *BlockDownloader) doDownloadTask(task *blockResponse, log *zap.Logger) 
 		log.Debug("failed to download block", zap.Error(err))
 		task.err = err
 		bd.cache.Remove(task.key)
+		close(task.ch)
 		return
 	}
 
 	task.b = blockBuf.Bytes()
+	close(task.ch)
 
 	log.Debug("downloaded block", zap.Duration("elapsed", time.Since(start)))
 	pn, err := merkledag.DecodeProtobuf(task.b)
@@ -165,7 +164,9 @@ func (bd *BlockDownloader) getResponse(c cid.Cid, priority int) *blockResponse {
 	}
 	bd.cache.Add(key, task)
 	heap.Push(bd.queue, task)
-	bd.ch <- struct{}{}
+	go func() {
+		bd.ch <- struct{}{}
+	}()
 	return task
 }
 
@@ -213,7 +214,7 @@ func NewBlockDownloader(bucket string, cacheSize, workers int, workerClient *wor
 		cache:        cache,
 		queue:        &priorityQueue{},
 
-		ch:     make(chan struct{}, 1000),
+		ch:     make(chan struct{}, workers),
 		bucket: bucket,
 	}
 	heap.Init(bd.queue)
