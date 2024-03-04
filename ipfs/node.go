@@ -3,6 +3,7 @@ package ipfs
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/ipfs/boxo/bitswap"
@@ -14,6 +15,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	format "github.com/ipfs/go-ipld-format"
+	"github.com/ipld/go-car/v2"
 	"github.com/libp2p/go-libp2p"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p-kad-dht/fullrt"
@@ -90,7 +92,63 @@ func (n *Node) AddPeer(addr peer.AddrInfo) {
 }
 
 // Pin pins a CID
-func (n *Node) Pin(ctx context.Context, c cid.Cid) error {
+func (n *Node) Pin(ctx context.Context, c cid.Cid, recursive bool) error {
+	log := n.log.Named("Pin").With(zap.Stringer("rootCID", c), zap.Bool("recursive", recursive))
+	if !recursive {
+		block, err := n.dagService.Get(ctx, c)
+		if err != nil {
+			return fmt.Errorf("failed to get block: %w", err)
+		} else if err := n.blockService.AddBlock(ctx, block); err != nil {
+			return fmt.Errorf("failed to add block: %w", err)
+		}
+		return n.provider.Provide(c)
+	}
+
+	sess := merkledag.NewSession(ctx, n.dagService)
+	seen := make(map[cid.Cid]bool)
+	err := merkledag.Walk(ctx, merkledag.GetLinksWithDAG(sess), c, func(c cid.Cid) bool {
+		if seen[c] {
+			return false
+		}
+		seen[c] = true
+
+		log := log.With(zap.Stringer("childCID", c))
+
+		// TODO: queue and handle these correctly
+		ctx, cancel := context.WithTimeout(ctx, time.Minute)
+		defer cancel()
+
+		node, err := sess.Get(ctx, c)
+		if err != nil {
+			log.Error("failed to get node", zap.Error(err))
+			return false
+		} else if err := n.blockService.AddBlock(ctx, node); err != nil {
+			log.Error("failed to add block", zap.Error(err))
+			return false
+		}
+		return true
+	}, merkledag.Concurrent(), merkledag.IgnoreErrors())
+	if err != nil {
+		return fmt.Errorf("failed to walk DAG: %w", err)
+	}
+	return n.provider.Provide(c)
+}
+
+// PinCAR pins all blocks in a CAR file to the node. The input reader
+// must be a valid CARv1 or CARv2 file.
+func (n *Node) PinCAR(ctx context.Context, r io.Reader) error {
+	log := n.log.Named("PinCAR")
+	cr, err := car.NewBlockReader(r)
+	if err != nil {
+		return fmt.Errorf("failed to create blockstore: %w", err)
+	}
+
+	for block, err := cr.Next(); err != io.EOF; block, err = cr.Next() {
+		if n.blockService.AddBlock(ctx, block); err != nil {
+			return fmt.Errorf("failed to add block %q: %w", block.Cid(), err)
+		}
+		log.Debug("added block", zap.Stringer("cid", block.Cid()))
+	}
 	return nil
 }
 

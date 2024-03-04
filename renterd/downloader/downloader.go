@@ -129,14 +129,17 @@ func (bd *BlockDownloader) doDownloadTask(task *blockResponse, log *zap.Logger) 
 	pn, err := merkledag.DecodeProtobuf(task.b)
 	if err != nil {
 		log.Debug("block is not a ProtoNode", zap.Error(err))
-	}
-
-	if len(pn.Links()) == 0 {
+		return
+	} else if len(pn.Links()) == 0 {
 		return
 	}
 
 	// prefetch linked blocks
-	for _, link := range pn.Links() {
+	links := pn.Links()
+	if len(links) > 50 {
+		links = links[:50]
+	}
+	for _, link := range links {
 		bd.getResponse(link.Cid, downloadPriorityLow)
 		log.Debug("queued linked blocks", zap.Stringer("cid", link.Cid), zap.String("key", cidKey(link.Cid)))
 	}
