@@ -113,7 +113,7 @@ func (n *Node) Pin(ctx context.Context, c cid.Cid, recursive bool) error {
 		seen[c] = true
 
 		log := log.With(zap.Stringer("childCID", c))
-
+		log.Debug("pinning child")
 		// TODO: queue and handle these correctly
 		ctx, cancel := context.WithTimeout(ctx, time.Minute)
 		defer cancel()
@@ -126,6 +126,7 @@ func (n *Node) Pin(ctx context.Context, c cid.Cid, recursive bool) error {
 			log.Error("failed to add block", zap.Error(err))
 			return false
 		}
+		log.Debug("pinned block")
 		return true
 	}, merkledag.Concurrent(), merkledag.IgnoreErrors())
 	if err != nil {
