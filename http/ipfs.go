@@ -106,7 +106,6 @@ func buildDispositionHeader(params url.Values) string {
 		disposition += "; filename=" + filename[0]
 	}
 	return disposition
-
 }
 
 func (is *ipfsGatewayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
