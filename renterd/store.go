@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ipfs/boxo/ipld/merkledag"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
@@ -31,6 +32,7 @@ type (
 		workerClient *worker.Client
 		busClient    *bus.Client
 
+		metadata   MetadataStore
 		downloader BlockDownloader
 	}
 )
@@ -44,6 +46,10 @@ func (bs *BlockStore) DeleteBlock(ctx context.Context, c cid.Cid) error {
 	key := cidKey(c)
 	log := bs.log.Named("DeleteBlock").With(zap.Stack("stack"), zap.Stringer("cid", c), zap.String("key", key))
 
+	if err := bs.metadata.Unpin(c); err != nil {
+		return fmt.Errorf("failed to unpin block: %w", err)
+	}
+
 	start := time.Now()
 	if err := bs.busClient.DeleteObject(ctx, bs.bucket, key, api.DeleteObjectOptions{}); err != nil {
 		log.Debug("failed to delete block", zap.Error(err))
@@ -54,11 +60,18 @@ func (bs *BlockStore) DeleteBlock(ctx context.Context, c cid.Cid) error {
 
 // Has returns whether or not a given block is in the blockstore.
 func (bs *BlockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
-	key := cidKey(c)
-	log := bs.log.Named("Has").With(zap.Stringer("cid", c), zap.String("key", key))
+	log := bs.log.Named("Has").With(zap.Stringer("cid", c))
 
 	start := time.Now()
-	_, err := bs.busClient.Object(ctx, bs.bucket, key, api.GetObjectOptions{})
+
+	bucket, key, err := bs.metadata.BlockLocation(c)
+	if format.IsNotFound(err) {
+		return false, nil
+	} else if err != nil {
+		return false, fmt.Errorf("failed to get block location: %w", err)
+	}
+
+	_, err = bs.busClient.Object(ctx, bucket, key, api.GetObjectOptions{})
 	if err != nil {
 		if strings.Contains(err.Error(), "object not found") {
 			log.Debug("block does not exist", zap.Duration("elapsed", time.Since(start)))
@@ -104,8 +117,28 @@ func (bs *BlockStore) Put(ctx context.Context, b blocks.Block) error {
 	log := bs.log.Named("Put").With(zap.Stringer("cid", b.Cid()), zap.String("key", key), zap.Int("size", len(b.RawData())))
 	start := time.Now()
 	_, err := bs.workerClient.UploadObject(ctx, bytes.NewReader(b.RawData()), bs.bucket, key, api.UploadObjectOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to store block %q: %w", b.Cid(), err)
+	}
+
+	log.Debug("object uploaded", zap.Duration("elapsed", time.Since(start)))
+
+	meta := PinnedBlock{
+		Cid:       b.Cid(),
+		Bucket:    bs.bucket,
+		ObjectKey: key,
+	}
+
+	for _, link := range blockLinks(b) {
+		meta.Links = append(meta.Links, link.Cid)
+	}
+
+	if err := bs.metadata.Pin(meta); err != nil {
+		log.Debug("failed to pin block", zap.Error(err))
+		return fmt.Errorf("failed to pin block %q: %w", b.Cid(), err)
+	}
 	log.Debug("put block", zap.Duration("duration", time.Since(start)), zap.Error(err))
-	return err
+	return nil
 }
 
 // PutMany puts a slice of blocks at the same time using batching
@@ -194,7 +227,9 @@ func NewBlockStore(opts ...Option) (*BlockStore, error) {
 		opt(options)
 	}
 
-	if options.Bus == nil {
+	if options.Store == nil {
+		return nil, fmt.Errorf("metadata store is required")
+	} else if options.Bus == nil {
 		return nil, fmt.Errorf("bus client is required")
 	} else if options.Worker == nil {
 		return nil, fmt.Errorf("worker client is required")
@@ -204,9 +239,18 @@ func NewBlockStore(opts ...Option) (*BlockStore, error) {
 
 	return &BlockStore{
 		log:          options.Log,
+		metadata:     options.Store,
 		busClient:    options.Bus,
 		workerClient: options.Worker,
 		bucket:       options.Bucket,
 		downloader:   options.Downloader,
 	}, nil
+}
+
+func blockLinks(b blocks.Block) []*format.Link {
+	pn, err := merkledag.DecodeProtobuf(b.RawData())
+	if err != nil {
+		return nil
+	}
+	return pn.Links()
 }

@@ -10,6 +10,7 @@ type options struct {
 	Bucket string
 
 	Downloader BlockDownloader
+	Store      MetadataStore
 	Worker     *worker.Client
 	Bus        *bus.Client
 	Log        *zap.Logger
@@ -17,6 +18,14 @@ type options struct {
 
 // An Option configures a renterd store
 type Option func(*options)
+
+// WithMetadataStore sets the metadata store.
+func WithMetadataStore(s MetadataStore) Option {
+	return func(o *options) {
+		o.Store = s
+	}
+
+}
 
 // WithBucket sets the bucket name.
 func WithBucket(bucket string) Option {

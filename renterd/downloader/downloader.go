@@ -11,7 +11,6 @@ import (
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
-	"github.com/ipfs/boxo/ipld/merkledag"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"go.sia.tech/renterd/api"
@@ -27,18 +26,26 @@ const (
 )
 
 type (
+	downloadPriority int8
+
 	blockResponse struct {
 		ch  chan struct{}
 		b   []byte
 		err error
 
-		key       string
-		priority  int
+		cid       cid.Cid
+		priority  downloadPriority
 		index     int
 		timestamp time.Time
 	}
 
 	priorityQueue []*blockResponse
+
+	MetadataStore interface {
+		BlockLocation(c cid.Cid) (bucket, key string, err error)
+		BlockSiblings(c cid.Cid, max int) (siblings []cid.Cid, err error)
+		BlockChildren(c cid.Cid, max int) (siblings []cid.Cid, err error)
+	}
 
 	// BlockDownloader is a cache for downloading blocks from a renterd node.
 	// It limits the number of in-flight requests to avoid overloading the node
@@ -46,6 +53,7 @@ type (
 	//
 	// For UnixFS nodes, it also prefetches linked blocks.
 	BlockDownloader struct {
+		store        MetadataStore
 		workerClient *worker.Client
 		log          *zap.Logger
 
@@ -58,6 +66,21 @@ type (
 		queue *priorityQueue
 	}
 )
+
+func (dp downloadPriority) String() string {
+	switch dp {
+	case downloadPriorityLow:
+		return "low"
+	case downloadPriorityMedium:
+		return "medium"
+	case downloadPriorityHigh:
+		return "high"
+	case downloadPriorityMax:
+		return "max"
+	default:
+		panic("invalid download priority")
+	}
+}
 
 func (h priorityQueue) Len() int { return len(h) }
 
@@ -105,61 +128,55 @@ func (br *blockResponse) block(ctx context.Context, c cid.Cid) (blocks.Block, er
 }
 
 func (bd *BlockDownloader) doDownloadTask(task *blockResponse, log *zap.Logger) {
-	start := time.Now()
+	log = log.Named("doDownloadTask").With(zap.Stringer("cid", task.cid), zap.Stringer("priority", task.priority))
 	blockBuf := bytes.NewBuffer(make([]byte, 0, 1<<20))
 
-	err := bd.workerClient.DownloadObject(context.Background(), blockBuf, bd.bucket, task.key, api.DownloadObjectOptions{
+	start := time.Now()
+
+	bucket, key, err := bd.store.BlockLocation(task.cid)
+	if err != nil {
+		log.Error("failed to get block location", zap.Error(err))
+		task.err = err
+		bd.cache.Remove(cidKey(task.cid))
+		close(task.ch)
+		return
+	}
+
+	err = bd.workerClient.DownloadObject(context.Background(), blockBuf, bucket, key, api.DownloadObjectOptions{
 		Range: api.DownloadRange{
 			Offset: 0,
 			Length: 1 << 20,
 		},
 	})
 	if err != nil {
+		log.Error("failed to download block", zap.Error(err))
 		task.err = err
-		bd.cache.Remove(task.key)
+		bd.cache.Remove(cidKey(task.cid))
 		close(task.ch)
 		return
 	}
+	log.Info("downloaded block", zap.Duration("elapsed", time.Since(start)))
 
 	task.b = blockBuf.Bytes()
 	close(task.ch)
-	log.Debug("downloaded block", zap.Duration("elapsed", time.Since(start)))
-
-	// prefetch linked blocks unless the priority is low
-	if task.priority > downloadPriorityLow {
-		return
-	}
-
-	pn, err := merkledag.DecodeProtobuf(blockBuf.Bytes())
-	if err != nil {
-		return
-	} else if len(pn.Links()) == 0 {
-		return
-	}
-
-	// prefetch linked blocks
-	for _, link := range pn.Links() {
-		bd.getResponse(link.Cid, task.priority+1)
-	}
-	log.Debug("queued linked blocks", zap.Int("count", len(pn.Links())))
 }
 
-func (bd *BlockDownloader) getResponse(c cid.Cid, priority int) *blockResponse {
+func (bd *BlockDownloader) getResponse(c cid.Cid, priority downloadPriority) *blockResponse {
 	bd.mu.Lock()
 	defer bd.mu.Unlock()
 	key := cidKey(c)
 
 	if task, ok := bd.cache.Get(key); ok {
 		bd.log.Debug("cache hit", zap.String("key", key))
+		// update the priority if the task is still queued
 		if task.priority < priority && task.index != -1 {
-			// update the priority if the task is still queued
 			task.priority = priority
 			heap.Fix(bd.queue, task.index)
 		}
 		return task
 	}
 	task := &blockResponse{
-		key:       key,
+		cid:       c,
 		priority:  priority,
 		timestamp: time.Now(),
 		ch:        make(chan struct{}),
@@ -189,37 +206,38 @@ func (bd *BlockDownloader) downloadWorker(ctx context.Context, n int) {
 
 		task := heap.Pop(bd.queue).(*blockResponse)
 		bd.mu.Unlock()
-		bd.doDownloadTask(task, log.With(zap.String("key", task.key), zap.Int("priority", task.priority)))
+		bd.doDownloadTask(task, log.With(zap.Stringer("cid", task.cid), zap.Stringer("priority", task.priority)))
 	}
 }
 
 // Get returns a block by CID.
 func (bd *BlockDownloader) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
 	log := bd.log.Named("Get").With(zap.Stringer("cid", c))
-	block, err := bd.getResponse(c, downloadPriorityMax).block(ctx, c)
-	if err != nil {
-		return nil, err
-	}
-	go func(block blocks.Block) {
-		// prefetch linked blocks for UnixFS nodes
-		pn, err := merkledag.DecodeProtobuf(block.RawData())
+	resp := bd.getResponse(c, downloadPriorityMax)
+	go func() {
+		// prefetch children
+		children, err := bd.store.BlockChildren(c, 10)
 		if err != nil {
-			return
-		} else if len(pn.Links()) == 0 {
-			return
+			log.Error("failed to get block children", zap.Error(err))
+		} else if len(children) > 0 {
+			log.Debug("prefetching children", zap.Int("count", len(children)))
+		}
+		for _, child := range children {
+			bd.getResponse(child, downloadPriorityLow)
 		}
 
-		// make sure direct children are queued at a high priority
-		links := pn.Links()
-		if len(links) > 100 {
-			links = links[:100]
+		// prefetch siblings
+		siblings, err := bd.store.BlockSiblings(c, 50)
+		if err != nil {
+			log.Error("failed to get block siblings", zap.Error(err))
+		} else if len(siblings) > 0 {
+			log.Debug("prefetching siblings", zap.Int("count", len(siblings)))
 		}
-		for _, link := range links {
-			bd.getResponse(link.Cid, downloadPriorityHigh)
+		for _, sibling := range siblings {
+			bd.getResponse(sibling, downloadPriorityMedium)
 		}
-		log.Debug("queued linked blocks", zap.Int("count", len(links)))
-	}(block)
-	return block, nil
+	}()
+	return resp.block(ctx, c)
 }
 
 func cidKey(c cid.Cid) string {
@@ -227,13 +245,14 @@ func cidKey(c cid.Cid) string {
 }
 
 // NewBlockDownloader creates a new BlockDownloader.
-func NewBlockDownloader(bucket string, cacheSize, workers int, workerClient *worker.Client, log *zap.Logger) (*BlockDownloader, error) {
+func NewBlockDownloader(store MetadataStore, bucket string, cacheSize, workers int, workerClient *worker.Client, log *zap.Logger) (*BlockDownloader, error) {
 	cache, err := lru.New2Q[string, *blockResponse](cacheSize)
 	if err != nil {
 		return nil, err
 	}
 
 	bd := &BlockDownloader{
+		store:        store,
 		workerClient: workerClient,
 		log:          log,
 		cache:        cache,

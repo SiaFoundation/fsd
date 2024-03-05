@@ -19,6 +19,7 @@ import (
 	"go.sia.tech/fsd/config"
 	shttp "go.sia.tech/fsd/http"
 	"go.sia.tech/fsd/ipfs"
+	"go.sia.tech/fsd/persist/sqlite"
 	"go.sia.tech/fsd/renterd"
 	"go.sia.tech/fsd/renterd/downloader"
 	"go.sia.tech/jape"
@@ -154,13 +155,20 @@ func main() {
 	workerClient := worker.NewClient(cfg.Renterd.WorkerAddress, cfg.Renterd.WorkerPassword)
 	busClient := bus.NewClient(cfg.Renterd.BusAddress, cfg.Renterd.BusPassword)
 
-	bd, err := downloader.NewBlockDownloader(cfg.Renterd.Bucket, cfg.BlockStore.CacheSize, cfg.BlockStore.MaxConcurrent, workerClient, log.Named("downloader"))
+	metadata, err := sqlite.OpenDatabase(filepath.Join(dir, "fsd.sqlite3"), log.Named("sqlite"))
+	if err != nil {
+		log.Fatal("failed to open sqlite database", zap.Error(err))
+	}
+	defer metadata.Close()
+
+	bd, err := downloader.NewBlockDownloader(metadata, cfg.Renterd.Bucket, cfg.BlockStore.CacheSize, cfg.BlockStore.MaxConcurrent, workerClient, log.Named("downloader"))
 	if err != nil {
 		log.Fatal("failed to create block downloader", zap.Error(err))
 	}
 
 	bs, err := renterd.NewBlockStore(
 		renterd.WithBucket(cfg.Renterd.Bucket),
+		renterd.WithMetadataStore(metadata),
 		renterd.WithWorker(workerClient),
 		renterd.WithBus(busClient),
 		renterd.WithDownloader(bd),
