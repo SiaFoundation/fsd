@@ -13,6 +13,7 @@ require (
 	github.com/ipld/go-car/v2 v2.10.2-0.20230622090957-499d0c909d33
 	github.com/libp2p/go-libp2p v0.32.2
 	github.com/libp2p/go-libp2p-kad-dht v0.24.4
+	github.com/mattn/go-sqlite3 v1.14.18
 	github.com/multiformats/go-multiaddr v0.12.1
 	github.com/multiformats/go-multicodec v0.9.0
 	github.com/multiformats/go-multihash v0.2.3

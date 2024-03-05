@@ -23,6 +23,7 @@ const (
 	downloadPriorityLow = iota + 1
 	downloadPriorityMedium
 	downloadPriorityHigh
+	downloadPriorityMax
 )
 
 type (
@@ -104,7 +105,6 @@ func (br *blockResponse) block(ctx context.Context, c cid.Cid) (blocks.Block, er
 }
 
 func (bd *BlockDownloader) doDownloadTask(task *blockResponse, log *zap.Logger) {
-	log.Debug("downloading block")
 	start := time.Now()
 	blockBuf := bytes.NewBuffer(make([]byte, 0, 1<<20))
 
@@ -115,7 +115,6 @@ func (bd *BlockDownloader) doDownloadTask(task *blockResponse, log *zap.Logger) 
 		},
 	})
 	if err != nil {
-		log.Debug("failed to download block", zap.Error(err))
 		task.err = err
 		bd.cache.Remove(task.key)
 		close(task.ch)
@@ -124,25 +123,25 @@ func (bd *BlockDownloader) doDownloadTask(task *blockResponse, log *zap.Logger) 
 
 	task.b = blockBuf.Bytes()
 	close(task.ch)
-
 	log.Debug("downloaded block", zap.Duration("elapsed", time.Since(start)))
-	pn, err := merkledag.DecodeProtobuf(task.b)
+
+	// prefetch linked blocks unless the priority is low
+	if task.priority > downloadPriorityLow {
+		return
+	}
+
+	pn, err := merkledag.DecodeProtobuf(blockBuf.Bytes())
 	if err != nil {
-		log.Debug("block is not a ProtoNode", zap.Error(err))
 		return
 	} else if len(pn.Links()) == 0 {
 		return
 	}
 
 	// prefetch linked blocks
-	links := pn.Links()
-	if len(links) > 50 {
-		links = links[:50]
+	for _, link := range pn.Links() {
+		bd.getResponse(link.Cid, task.priority+1)
 	}
-	for _, link := range links {
-		bd.getResponse(link.Cid, downloadPriorityLow)
-		log.Debug("queued linked blocks", zap.Stringer("cid", link.Cid), zap.String("key", cidKey(link.Cid)))
-	}
+	log.Debug("queued linked blocks", zap.Int("count", len(pn.Links())))
 }
 
 func (bd *BlockDownloader) getResponse(c cid.Cid, priority int) *blockResponse {
@@ -174,8 +173,7 @@ func (bd *BlockDownloader) getResponse(c cid.Cid, priority int) *blockResponse {
 }
 
 func (bd *BlockDownloader) downloadWorker(ctx context.Context, n int) {
-	log := bd.log.Named("worker").With(zap.Int("n", n))
-
+	log := bd.log.Named("worker").With(zap.Int("id", n))
 	for {
 		select {
 		case <-ctx.Done():
@@ -191,13 +189,37 @@ func (bd *BlockDownloader) downloadWorker(ctx context.Context, n int) {
 
 		task := heap.Pop(bd.queue).(*blockResponse)
 		bd.mu.Unlock()
-		bd.doDownloadTask(task, log.With(zap.String("key", task.key)))
+		bd.doDownloadTask(task, log.With(zap.String("key", task.key), zap.Int("priority", task.priority)))
 	}
 }
 
 // Get returns a block by CID.
 func (bd *BlockDownloader) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
-	return bd.getResponse(c, downloadPriorityHigh).block(ctx, c)
+	log := bd.log.Named("Get").With(zap.Stringer("cid", c))
+	block, err := bd.getResponse(c, downloadPriorityMax).block(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+	go func(block blocks.Block) {
+		// prefetch linked blocks for UnixFS nodes
+		pn, err := merkledag.DecodeProtobuf(block.RawData())
+		if err != nil {
+			return
+		} else if len(pn.Links()) == 0 {
+			return
+		}
+
+		// make sure direct children are queued at a high priority
+		links := pn.Links()
+		if len(links) > 100 {
+			links = links[:100]
+		}
+		for _, link := range links {
+			bd.getResponse(link.Cid, downloadPriorityHigh)
+		}
+		log.Debug("queued linked blocks", zap.Int("count", len(links)))
+	}(block)
+	return block, nil
 }
 
 func cidKey(c cid.Cid) string {
