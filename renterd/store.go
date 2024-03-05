@@ -100,7 +100,13 @@ func (bs *BlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) 
 func (bs *BlockStore) GetSize(ctx context.Context, c cid.Cid) (int, error) {
 	key := cidKey(c)
 	log := bs.log.Named("GetSize").With(zap.Stringer("cid", c), zap.String("key", key))
-	stat, err := bs.busClient.Object(ctx, bs.bucket, key, api.GetObjectOptions{})
+
+	bucket, key, err := bs.metadata.BlockLocation(c)
+	if err != nil {
+		return 0, err
+	}
+
+	stat, err := bs.busClient.Object(ctx, bucket, key, api.GetObjectOptions{})
 	if err != nil {
 		if !strings.Contains(err.Error(), "object not found") {
 			log.Debug("failed to get block size", zap.Error(err))
