@@ -14,6 +14,7 @@ type (
 		Pin(PinnedBlock) error
 		Unpin(c cid.Cid) error
 
+		Pinned(offset, limit int) (roots []cid.Cid, err error)
 		BlockLocation(c cid.Cid) (bucket, key string, err error)
 	}
 )

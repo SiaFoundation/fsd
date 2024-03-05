@@ -153,3 +153,28 @@ INNER JOIN blocks AS b ON (b.id = fs.child_id)`
 	})
 	return
 }
+
+// Pinned returns the next n pinned CIDs. If there are no remaining CIDs, the
+// returned value should be (nil, nil)
+func (s *Store) Pinned(offset, limit int) (roots []cid.Cid, err error) {
+	err = s.transaction(func(tx *txn) error {
+		rows, err := tx.Query(`SELECT b.cid FROM pinned_blocks pb
+INNER JOIN blocks b ON (b.id=pb.block_id)
+ORDER BY b.id ASC
+LIMIT $1 OFFSET $2`, limit, offset)
+		if err != nil {
+			return fmt.Errorf("failed to query root cids: %w", err)
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var root cid.Cid
+			if err := rows.Scan(dbDecode(&root)); err != nil {
+				return fmt.Errorf("failed to scan root cid: %w", err)
+			}
+			roots = append(roots, root)
+		}
+		return rows.Err()
+	})
+	return
+}

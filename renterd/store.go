@@ -173,38 +173,26 @@ func (bs *BlockStore) AllKeysChan(ctx context.Context) (<-chan cid.Cid, error) {
 	log := bs.log.Named("AllKeysChan")
 	ch := make(chan cid.Cid)
 	go func() {
-		var marker string
-		for {
-			resp, err := bs.busClient.ListObjects(ctx, bs.bucket, api.ListObjectOptions{
-				Marker: marker,
-				Limit:  100,
-			})
+
+		for i := 0; ; i += 1000 {
+			cids, err := bs.metadata.Pinned(i, 1000)
 			if err != nil {
+				bs.log.Error("failed to get root CIDs", zap.Error(err))
 				close(ch)
 				return
-			} else if len(resp.Objects) == 0 {
+			} else if len(cids) == 0 {
 				close(ch)
 				return
 			}
 
-			for _, obj := range resp.Objects {
-				name := obj.Name
-				if p := strings.Split(obj.Name, "/"); len(p) > 1 {
-					name = p[len(p)-1]
-				}
-				c, err := cid.Parse(name)
-				if err != nil {
-					log.Debug("skipping invalid key", zap.String("key", obj.Name), zap.String("name", name))
-					continue
-				}
-				log.Debug("found key", zap.Stringer("cid", c))
+			log.Debug("got root CIDs", zap.Int("count", len(cids)))
+			for _, c := range cids {
 				select {
 				case ch <- c:
 				case <-ctx.Done():
 					close(ch)
 					return
 				}
-				marker = obj.Name
 			}
 		}
 	}()
