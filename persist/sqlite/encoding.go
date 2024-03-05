@@ -37,8 +37,7 @@ func (d *decodable) Scan(src any) error {
 
 	switch src := src.(type) {
 	case string:
-		switch v := d.v.(type) {
-		case *cid.Cid:
+		if v, ok := d.v.(*cid.Cid); ok {
 			c, err := cid.Parse(src)
 			if err != nil {
 				return err
@@ -47,11 +46,10 @@ func (d *decodable) Scan(src any) error {
 			return nil
 		}
 	case []byte:
-		switch v := d.v.(type) {
-		case *uint64:
-			*v = binary.LittleEndian.Uint64(src)
+		if v, ok := d.v.(*uint64); ok {
+			*v = binary.BigEndian.Uint64(src)
+			return nil
 		}
-		return nil
 	case int64:
 		switch v := d.v.(type) {
 		case *uint64:

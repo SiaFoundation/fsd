@@ -24,7 +24,6 @@ func WithMetadataStore(s MetadataStore) Option {
 	return func(o *options) {
 		o.Store = s
 	}
-
 }
 
 // WithBucket sets the bucket name.

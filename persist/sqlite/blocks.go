@@ -19,6 +19,7 @@ func normalizeCid(c cid.Cid) cid.Cid {
 	return cid.NewCidV1(c.Type(), c.Hash())
 }
 
+// BlockLocation returns the bucket and object key of a pinned block.
 func (s *Store) BlockLocation(c cid.Cid) (bucket, key string, err error) {
 	c = normalizeCid(c)
 	err = s.transaction(func(tx *txn) error {
@@ -31,6 +32,7 @@ INNER JOIN blocks b ON (b.id=pb.block_id) WHERE b.cid=$1`, dbEncode(c)).Scan(&bu
 	return
 }
 
+// Unpin deletes a block from the store.
 func (s *Store) Unpin(c cid.Cid) error {
 	c = normalizeCid(c)
 	return s.transaction(func(tx *txn) error {
@@ -39,6 +41,7 @@ func (s *Store) Unpin(c cid.Cid) error {
 	})
 }
 
+// Pin adds a block to the store.
 func (s *Store) Pin(b renterd.PinnedBlock) error {
 	b.Cid = normalizeCid(b.Cid)
 	s.log.Debug("pinning block", zap.Stringer("cid", b.Cid), zap.String("bucket", b.Bucket), zap.String("objectKey", b.ObjectKey))

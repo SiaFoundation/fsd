@@ -42,6 +42,8 @@ type (
 
 	priorityQueue []*blockResponse
 
+	// A MetadataStore is a store for IPFS block metadata. It is used to
+	// optimize block downloads by prefetching linked blocks.
 	MetadataStore interface {
 		BlockLocation(c cid.Cid) (bucket, key string, err error)
 		BlockSiblings(c cid.Cid, max int) (siblings []cid.Cid, err error)

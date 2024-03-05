@@ -179,7 +179,6 @@ func (bs *BlockStore) AllKeysChan(ctx context.Context) (<-chan cid.Cid, error) {
 	log := bs.log.Named("AllKeysChan")
 	ch := make(chan cid.Cid)
 	go func() {
-
 		for i := 0; ; i += 1000 {
 			cids, err := bs.metadata.Pinned(i, 1000)
 			if err != nil {
