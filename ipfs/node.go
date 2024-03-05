@@ -170,17 +170,11 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 
 	scalingLimits := rcmgr.DefaultLimits
 	libp2p.SetDefaultServiceLimits(&scalingLimits)
-	scaledDefaultLimits := scalingLimits.AutoScale()
-	resourceCfg := rcmgr.PartialLimitConfig{
-		System: rcmgr.ResourceLimits{
-			StreamsOutbound: rcmgr.Unlimited,
-		},
-	}
-	limits := resourceCfg.Build(scaledDefaultLimits)
-	limiter := rcmgr.NewFixedLimiter(limits)
+
+	limiter := rcmgr.NewFixedLimiter(rcmgr.InfiniteLimits)
 	rm, err := rcmgr.NewResourceManager(limiter, rcmgr.WithMetricsDisabled())
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("failed to create resource manager: %w", err)
 	}
 
 	opts := []libp2p.Option{
