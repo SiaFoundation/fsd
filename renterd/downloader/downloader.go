@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"container/heap"
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
+	mh "github.com/multiformats/go-multihash"
 	"go.sia.tech/renterd/api"
 	"go.sia.tech/renterd/worker"
 	"go.uber.org/zap"
@@ -135,7 +137,6 @@ func (bd *BlockDownloader) doDownloadTask(task *blockResponse, log *zap.Logger) 
 	blockBuf := bytes.NewBuffer(make([]byte, 0, 1<<20))
 
 	start := time.Now()
-
 	bucket, key, err := bd.store.BlockLocation(task.cid)
 	if err != nil {
 		if !format.IsNotFound(err) {
@@ -147,12 +148,7 @@ func (bd *BlockDownloader) doDownloadTask(task *blockResponse, log *zap.Logger) 
 		return
 	}
 
-	err = bd.workerClient.DownloadObject(context.Background(), blockBuf, bucket, key, api.DownloadObjectOptions{
-		Range: api.DownloadRange{
-			Offset: 0,
-			Length: 1 << 20,
-		},
-	})
+	err = bd.workerClient.DownloadObject(context.Background(), blockBuf, bucket, key, api.DownloadObjectOptions{})
 	if err != nil {
 		if !format.IsNotFound(err) {
 			log.Error("failed to download block", zap.Error(err))
@@ -162,8 +158,23 @@ func (bd *BlockDownloader) doDownloadTask(task *blockResponse, log *zap.Logger) 
 		close(task.ch)
 		return
 	}
-	log.Info("downloaded block", zap.Duration("elapsed", time.Since(start)))
 
+	c := task.cid
+	h, err := mh.Sum(blockBuf.Bytes(), c.Prefix().MhType, -1)
+	if err != nil {
+		log.Error("failed to hash block", zap.Error(err))
+		task.err = err
+		bd.cache.Remove(cidKey(task.cid))
+		close(task.ch)
+		return
+	} else if c.Hash().HexString() != h.HexString() {
+		log.Error("block hash mismatch", zap.String("expected", c.Hash().HexString()), zap.String("actual", h.HexString()))
+		task.err = errors.New("block hash mismatch")
+		bd.cache.Remove(cidKey(task.cid))
+		close(task.ch)
+		return
+	}
+	log.Info("downloaded block", zap.Duration("elapsed", time.Since(start)))
 	task.b = blockBuf.Bytes()
 	close(task.ch)
 }

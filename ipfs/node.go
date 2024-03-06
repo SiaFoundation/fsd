@@ -92,26 +92,31 @@ func (n *Node) AddPeer(addr peer.AddrInfo) {
 }
 
 // Pin pins a CID
-func (n *Node) Pin(ctx context.Context, c cid.Cid, recursive bool) error {
-	log := n.log.Named("Pin").With(zap.Stringer("rootCID", c), zap.Bool("recursive", recursive))
+func (n *Node) Pin(ctx context.Context, root cid.Cid, recursive bool) error {
+	log := n.log.Named("Pin").With(zap.Stringer("rootCID", root), zap.Bool("recursive", recursive))
 	if !recursive {
-		block, err := n.dagService.Get(ctx, c)
+		block, err := n.dagService.Get(ctx, root)
 		if err != nil {
 			return fmt.Errorf("failed to get block: %w", err)
 		} else if err := n.blockService.AddBlock(ctx, block); err != nil {
 			return fmt.Errorf("failed to add block: %w", err)
 		}
-		return n.provider.Provide(c)
+		return n.provider.Provide(root)
 	}
 
 	sess := merkledag.NewSession(ctx, n.dagService)
-	seen := make(map[cid.Cid]bool)
-	err := merkledag.Walk(ctx, merkledag.GetLinksWithDAG(sess), c, func(c cid.Cid) bool {
-		if seen[c] {
+	seen := make(map[string]bool)
+	err := merkledag.Walk(ctx, merkledag.GetLinksWithDAG(sess), root, func(c cid.Cid) bool {
+		var key string
+		switch c.Version() {
+		case 0:
+			key = cid.NewCidV1(c.Type(), c.Hash()).String()
+		case 1:
+			key = c.String()
+		}
+		if seen[key] {
 			return false
 		}
-		seen[c] = true
-
 		log := log.With(zap.Stringer("childCID", c))
 		log.Debug("pinning child")
 		// TODO: queue and handle these correctly
@@ -126,13 +131,14 @@ func (n *Node) Pin(ctx context.Context, c cid.Cid, recursive bool) error {
 			log.Error("failed to add block", zap.Error(err))
 			return false
 		}
+		seen[key] = true
 		log.Debug("pinned block")
 		return true
 	}, merkledag.Concurrent(), merkledag.IgnoreErrors())
 	if err != nil {
 		return fmt.Errorf("failed to walk DAG: %w", err)
 	}
-	return n.provider.Provide(c)
+	return n.provider.Provide(root)
 }
 
 // PinCAR pins all blocks in a CAR file to the node. The input reader
