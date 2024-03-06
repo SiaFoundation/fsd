@@ -75,11 +75,11 @@ func sqliteFilepath(fp string) string {
 // an error, the transaction is rolled back. Otherwise, the transaction is
 // committed.
 func doTransaction(db *sql.DB, log *zap.Logger, fn func(tx *txn) error) error {
-	start := time.Now()
 	dbtx, err := db.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
+	start := time.Now()
 	defer func() {
 		if err := dbtx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
 			log.Error("failed to rollback transaction", zap.Error(err))
@@ -89,7 +89,6 @@ func doTransaction(db *sql.DB, log *zap.Logger, fn func(tx *txn) error) error {
 			log.Debug("long transaction", zap.Duration("elapsed", time.Since(start)), zap.Stack("stack"), zap.Bool("failed", err != nil))
 		}
 	}()
-
 	tx := &txn{
 		Tx:  dbtx,
 		log: log,
