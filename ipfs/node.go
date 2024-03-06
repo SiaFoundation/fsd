@@ -4,30 +4,30 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
+	"time"
 
 	"github.com/ipfs/boxo/bitswap"
 	bnetwork "github.com/ipfs/boxo/bitswap/network"
 	"github.com/ipfs/boxo/blockservice"
 	"github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/boxo/ipld/merkledag"
-	fsio "github.com/ipfs/boxo/ipld/unixfs/io"
 	"github.com/ipfs/boxo/provider"
-	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	format "github.com/ipfs/go-ipld-format"
+	"github.com/ipld/go-car/v2"
 	"github.com/libp2p/go-libp2p"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p-kad-dht/fullrt"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
-	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
+	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/multiformats/go-multiaddr"
 	"go.sia.tech/fsd/config"
+	"go.uber.org/zap"
 )
 
 var bootstrapPeers = []peer.AddrInfo{
@@ -41,10 +41,10 @@ var bootstrapPeers = []peer.AddrInfo{
 
 // A Node is a minimal IPFS node
 type Node struct {
+	log  *zap.Logger
 	host host.Host
 	frt  *fullrt.FullRT
 
-	blockstore   blockstore.Blockstore
 	blockService blockservice.BlockService
 	dagService   format.DAGService
 	bitswap      *bitswap.Bitswap
@@ -62,48 +62,13 @@ func (n *Node) Close() error {
 }
 
 // GetBlock fetches a block from the IPFS network
-func (n *Node) GetBlock(ctx context.Context, c cid.Cid) (blocks.Block, error) {
-	return n.blockService.GetBlock(ctx, c)
+func (n *Node) GetBlock(ctx context.Context, c cid.Cid) (format.Node, error) {
+	return n.dagService.Get(ctx, c)
 }
 
-// DownloadCID downloads a CID from IPFS
-func (n *Node) DownloadCID(ctx context.Context, c cid.Cid, path []string) (io.ReadSeekCloser, error) {
-	dagSess := merkledag.NewSession(ctx, n.dagService)
-	rootNode, err := dagSess.Get(ctx, c)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get root node: %w", err)
-	}
-
-	var traverse func(context.Context, format.Node, []string) (format.Node, error)
-	traverse = func(ctx context.Context, parent format.Node, path []string) (format.Node, error) {
-		if len(path) == 0 {
-			return parent, nil
-		}
-
-		childLink, rem, err := parent.Resolve(path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve path %q: %w", strings.Join(path, "/"), err)
-		}
-
-		switch v := childLink.(type) {
-		case *format.Link:
-			childNode, err := dagSess.Get(ctx, v.Cid)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get child node %q: %w", v.Cid, err)
-			}
-			return traverse(ctx, childNode, rem)
-		default:
-			return nil, fmt.Errorf("expected link node, got %T", childLink)
-		}
-	}
-
-	node, err := traverse(ctx, rootNode, path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to traverse path: %w", err)
-	}
-
-	dr, err := fsio.NewDagReader(ctx, node, dagSess)
-	return dr, err
+// HasBlock checks if a block is locally pinned
+func (n *Node) HasBlock(ctx context.Context, c cid.Cid) (bool, error) {
+	return n.blockService.Blockstore().Has(ctx, c)
 }
 
 // PeerID returns the peer ID of the node
@@ -123,7 +88,75 @@ func (n *Node) Peers() []peer.ID {
 
 // AddPeer adds a peer to the peerstore
 func (n *Node) AddPeer(addr peer.AddrInfo) {
-	n.host.Peerstore().AddAddrs(addr.ID, addr.Addrs, peerstore.PermanentAddrTTL)
+	n.host.Peerstore().AddAddrs(addr.ID, addr.Addrs, peerstore.AddressTTL)
+}
+
+// Pin pins a CID
+func (n *Node) Pin(ctx context.Context, root cid.Cid, recursive bool) error {
+	log := n.log.Named("Pin").With(zap.Stringer("rootCID", root), zap.Bool("recursive", recursive))
+	if !recursive {
+		block, err := n.dagService.Get(ctx, root)
+		if err != nil {
+			return fmt.Errorf("failed to get block: %w", err)
+		} else if err := n.blockService.AddBlock(ctx, block); err != nil {
+			return fmt.Errorf("failed to add block: %w", err)
+		}
+		return n.provider.Provide(root)
+	}
+
+	sess := merkledag.NewSession(ctx, n.dagService)
+	seen := make(map[string]bool)
+	err := merkledag.Walk(ctx, merkledag.GetLinksWithDAG(sess), root, func(c cid.Cid) bool {
+		var key string
+		switch c.Version() {
+		case 0:
+			key = cid.NewCidV1(c.Type(), c.Hash()).String()
+		case 1:
+			key = c.String()
+		}
+		if seen[key] {
+			return false
+		}
+		log := log.With(zap.Stringer("childCID", c))
+		log.Debug("pinning child")
+		// TODO: queue and handle these correctly
+		ctx, cancel := context.WithTimeout(ctx, time.Minute)
+		defer cancel()
+
+		node, err := sess.Get(ctx, c)
+		if err != nil {
+			log.Error("failed to get node", zap.Error(err))
+			return false
+		} else if err := n.blockService.AddBlock(ctx, node); err != nil {
+			log.Error("failed to add block", zap.Error(err))
+			return false
+		}
+		seen[key] = true
+		log.Debug("pinned block")
+		return true
+	}, merkledag.Concurrent(), merkledag.IgnoreErrors())
+	if err != nil {
+		return fmt.Errorf("failed to walk DAG: %w", err)
+	}
+	return n.provider.Provide(root)
+}
+
+// PinCAR pins all blocks in a CAR file to the node. The input reader
+// must be a valid CARv1 or CARv2 file.
+func (n *Node) PinCAR(ctx context.Context, r io.Reader) error {
+	log := n.log.Named("PinCAR")
+	cr, err := car.NewBlockReader(r)
+	if err != nil {
+		return fmt.Errorf("failed to create blockstore: %w", err)
+	}
+
+	for block, err := cr.Next(); err != io.EOF; block, err = cr.Next() {
+		if n.blockService.AddBlock(ctx, block); err != nil {
+			return fmt.Errorf("failed to add block %q: %w", block.Cid(), err)
+		}
+		log.Debug("added block", zap.Stringer("cid", block.Cid()))
+	}
+	return nil
 }
 
 func mustParsePeer(s string) peer.AddrInfo {
@@ -135,10 +168,19 @@ func mustParsePeer(s string) peer.AddrInfo {
 }
 
 // NewNode creates a new IPFS node
-func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds datastore.Batching, bs blockstore.Blockstore) (*Node, error) {
+func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds datastore.Batching, bs blockstore.Blockstore, log *zap.Logger) (*Node, error) {
 	cmgr, err := connmgr.NewConnManager(600, 900)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create connection manager: %w", err)
+	}
+
+	scalingLimits := rcmgr.DefaultLimits
+	libp2p.SetDefaultServiceLimits(&scalingLimits)
+
+	limiter := rcmgr.NewFixedLimiter(rcmgr.InfiniteLimits)
+	rm, err := rcmgr.NewResourceManager(limiter, rcmgr.WithMetricsDisabled())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create resource manager: %w", err)
 	}
 
 	opts := []libp2p.Option{
@@ -146,7 +188,7 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 		libp2p.ConnectionManager(cmgr),
 		libp2p.Identity(privateKey),
 		libp2p.EnableRelay(),
-		libp2p.ResourceManager(new(network.NullResourceManager)),
+		libp2p.ResourceManager(rm),
 		libp2p.DefaultPeerstore,
 		libp2p.DefaultTransports,
 	}
@@ -174,7 +216,11 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 		dht.Mode(dht.ModeServer),
 		dht.BootstrapPeers(bootstrapPeers...),
 		dht.BucketSize(20),
+		dht.Concurrency(30),
 		dht.Datastore(ds),
+		dht.QueryFilter(dht.PublicQueryFilter),
+		dht.RoutingTableFilter(dht.PublicRoutingTableFilter),
+		dht.RoutingTablePeerDiversityFilter(dht.NewRTPeerDiversityFilter(host, 2, 3)),
 	}
 
 	frt, err := fullrt.NewFullRT(host, dht.DefaultPrefix, fullrt.DHTOption(dhtOpts...))
@@ -182,14 +228,25 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 		return nil, fmt.Errorf("failed to create fullrt: %w", err)
 	}
 
+	bitswapOpts := []bitswap.Option{
+		bitswap.EngineBlockstoreWorkerCount(600),
+		bitswap.TaskWorkerCount(600),
+		bitswap.MaxOutstandingBytesPerPeer(int(5 << 20)),
+	}
+
 	bitswapNet := bnetwork.NewFromIpfsHost(host, frt)
-	bitswap := bitswap.New(ctx, bitswapNet, bs)
+	bitswap := bitswap.New(ctx, bitswapNet, bs, bitswapOpts...)
 
 	blockServ := blockservice.New(bs, bitswap)
 	dagService := merkledag.NewDAGService(blockServ)
-	bsp := provider.NewBlockstoreProvider(bs)
 
-	prov, err := provider.New(ds, provider.KeyProvider(bsp), provider.Online(frt))
+	providerOpts := []provider.Option{
+		provider.KeyProvider(provider.NewBlockstoreProvider(bs)),
+		provider.Online(frt),
+		provider.ReproviderInterval(10 * time.Hour),
+	}
+
+	prov, err := provider.New(ds, providerOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create provider: %w", err)
 	}
@@ -208,9 +265,9 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 	}
 
 	return &Node{
+		log:          log,
 		frt:          frt,
 		host:         host,
-		blockstore:   bs,
 		bitswap:      bitswap,
 		blockService: blockServ,
 		dagService:   dagService,

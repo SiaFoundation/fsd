@@ -1,14 +1,13 @@
 package http
 
 import (
-	"bufio"
+	"io"
 	"net/http"
 
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"go.sia.tech/fsd/config"
 	"go.sia.tech/fsd/ipfs"
-	"go.sia.tech/fsd/sia"
 	"go.sia.tech/jape"
 	"go.uber.org/zap"
 )
@@ -16,70 +15,9 @@ import (
 type (
 	apiServer struct {
 		ipfs *ipfs.Node
-		sia  *sia.Node
 		log  *zap.Logger
 	}
 )
-
-func (as *apiServer) handlePin(jc jape.Context) {
-	ctx := jc.Request.Context()
-	var cidStr string
-	if err := jc.DecodeParam("cid", &cidStr); err != nil {
-		return
-	}
-	c, err := cid.Parse(cidStr)
-	if err != nil {
-		jc.Error(err, http.StatusBadRequest)
-		return
-	}
-
-	// TODO: break this out for better support, the current implementation will
-	// not properly handle anything but standard unixfs files with the default
-	// block size
-	rr, err := as.ipfs.DownloadCID(ctx, c, nil)
-	if err != nil {
-		jc.Error(err, http.StatusInternalServerError)
-		return
-	}
-	defer rr.Close()
-
-	var opts sia.UnixFSOptions
-	switch c.Version() {
-	case 1:
-		prefix := c.Prefix()
-		opts.CIDBuilder = cid.V1Builder{Codec: prefix.Codec, MhType: prefix.MhType, MhLength: prefix.MhLength}
-	case 0:
-		opts.CIDBuilder = cid.V0Builder{}
-	}
-
-	br := bufio.NewReaderSize(rr, 256<<20) // 256 MiB
-	c, err = as.sia.UploadFile(jc.Request.Context(), br, opts)
-	if err != nil {
-		jc.Error(err, http.StatusInternalServerError)
-		return
-	}
-
-	// return the calculated cid
-	jc.Encode(c.String())
-}
-
-func (as *apiServer) handleCIDVerify(jc jape.Context) {
-	ctx := jc.Request.Context()
-	var cidStr string
-	if err := jc.DecodeParam("cid", &cidStr); err != nil {
-		return
-	}
-	c, err := cid.Parse(cidStr)
-	if err != nil {
-		jc.Error(err, http.StatusBadRequest)
-		return
-	}
-
-	if err := as.sia.VerifyCID(ctx, c); err != nil {
-		jc.Error(err, http.StatusInternalServerError)
-		return
-	}
-}
 
 func (as *apiServer) handleListPeers(jc jape.Context) {
 	jc.Encode(as.ipfs.Peers())
@@ -93,19 +31,40 @@ func (as *apiServer) handleAddPeer(jc jape.Context) {
 	as.ipfs.AddPeer(peer)
 }
 
+func (as *apiServer) handleCARPin(jc jape.Context) {
+	defer jc.Request.Body.Close()
+
+	lr := io.LimitReader(jc.Request.Body, 256<<20) // 256MB
+	if err := as.ipfs.PinCAR(jc.Request.Context(), lr); err != nil {
+		jc.Error(err, http.StatusBadRequest)
+	}
+}
+
+func (as *apiServer) handleCIDPin(jc jape.Context) {
+	var c cid.Cid
+	var recursive bool
+	if jc.DecodeParam("cid", &c) != nil {
+		return
+	} else if jc.DecodeForm("recursive", &recursive) != nil {
+		return
+	}
+
+	if err := as.ipfs.Pin(jc.Request.Context(), c, recursive); err != nil {
+		jc.Error(err, http.StatusBadRequest)
+	}
+}
+
 // NewAPIHandler returns a new http.Handler that handles requests to the api
-func NewAPIHandler(ipfs *ipfs.Node, sia *sia.Node, cfg config.Config, log *zap.Logger) http.Handler {
+func NewAPIHandler(ipfs *ipfs.Node, cfg config.Config, log *zap.Logger) http.Handler {
 	s := &apiServer{
 		ipfs: ipfs,
-		sia:  sia,
 		log:  log,
 	}
 	return jape.Mux(map[string]jape.Handler{
-		"POST /api/cid/:cid/verify":  s.handleCIDVerify,
-		"POST /api/unixfs/calculate": s.handleUnixFSCalculate,
-		"POST /api/unixfs/upload":    s.handleUnixFSUpload,
-		"POST /api/pin/:cid":         s.handlePin,
-		"GET /api/peers":             s.handleListPeers,
-		"PUT /api/peers":             s.handleAddPeer,
+		"POST /api/unixfs/upload": s.handleUnixFSUpload,
+		"PUT /api/car/pin":        s.handleCARPin,
+		"PUT /api/cid/:cid/pin":   s.handleCIDPin,
+		"GET /api/peers":          s.handleListPeers,
+		"PUT /api/peers":          s.handleAddPeer,
 	})
 }

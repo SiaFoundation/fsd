@@ -18,7 +18,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"go.sia.tech/fsd/config"
 	"go.sia.tech/fsd/ipfs"
-	"go.sia.tech/fsd/persist/badger"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 	"lukechampine.com/frand"
@@ -139,12 +138,6 @@ func TestDownload(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	store, err := badger.OpenDatabase(filepath.Join(t.TempDir(), "fsd.badgerdb"), log.Named("badger"))
-	if err != nil {
-		log.Fatal("failed to open badger database", zap.Error(err))
-	}
-	defer store.Close()
-
 	ds, err := levelds.NewDatastore(filepath.Join(t.TempDir(), "fsdds.leveldb"), nil)
 	if err != nil {
 		log.Fatal("failed to open leveldb datastore", zap.Error(err))
@@ -155,7 +148,7 @@ func TestDownload(t *testing.T) {
 		blocks: make(map[cid.Cid][]byte),
 	}
 
-	node, err := ipfs.NewNode(ctx, privateKey, config.IPFS{}, ds, bs)
+	node, err := ipfs.NewNode(ctx, privateKey, config.IPFS{}, ds, bs, log.Named("ipfs"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +165,7 @@ func TestDownload(t *testing.T) {
 	downloadCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
-	r, err := node.DownloadCID(downloadCtx, c, path)
+	r, err := node.DownloadUnixFile(downloadCtx, c, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,6 +178,60 @@ func TestDownload(t *testing.T) {
 
 	shaChecksum := hex.EncodeToString(h.Sum(nil))
 	if shaChecksum != "bb783b7b53f4a36fd6076fbc8384ca860c20aecd6e57f29cb23ea06409808f31" {
+		t.Fatalf("unexpected hash: %x", h.Sum(nil))
+	}
+}
+
+func TestDownload2(t *testing.T) {
+	log := zaptest.NewLogger(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	privateKey, _, err := crypto.GenerateEd25519Key(frand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ds, err := levelds.NewDatastore(filepath.Join(t.TempDir(), "fsdds.leveldb"), nil)
+	if err != nil {
+		log.Fatal("failed to open leveldb datastore", zap.Error(err))
+	}
+	defer ds.Close()
+
+	bs := &memoryBlockStore{
+		blocks: make(map[cid.Cid][]byte),
+	}
+
+	node, err := ipfs.NewNode(ctx, privateKey, config.IPFS{}, ds, bs, log.Named("ipfs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer node.Close()
+
+	time.Sleep(time.Second)
+
+	t.Log(node.PeerID())
+	t.Log(node.Peers())
+
+	c := cid.MustParse("QmawceGscqN4o8Y8Fv26UUmB454kn2bnkXV5tEQYc4jBd6")
+
+	downloadCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	r, err := node.DownloadUnixFile(downloadCtx, c, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, r); err != nil {
+		t.Fatal(err)
+	}
+
+	shaChecksum := hex.EncodeToString(h.Sum(nil))
+	if shaChecksum != "f0fe7b43114786cf72649551290761a01b27cd85d9f1a97da7f58c2b505d4cf3" {
 		t.Fatalf("unexpected hash: %x", h.Sum(nil))
 	}
 }

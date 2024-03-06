@@ -15,6 +15,14 @@ type (
 		Bucket         string `yaml:"bucket"`
 	}
 
+	// BlockStore configures the blockstore.
+	BlockStore struct {
+		// MaxConcurrent is the maximum number of concurrent block fetches.
+		MaxConcurrent int `yaml:"maxConcurrent"`
+		// CacheSize is the maximum number of blocks to cache in memory.
+		CacheSize int `yaml:"cacheSize"`
+	}
+
 	// RemoteFetch contains settings for enabling/disabling remote IPFS block
 	// fetching.
 	RemoteFetch struct {
@@ -61,9 +69,10 @@ type (
 
 	// Config contains the configuration for fsd
 	Config struct {
-		Renterd Renterd `yaml:"renterd"`
-		IPFS    IPFS    `yaml:"ipfs"`
-		API     API     `yaml:"api"`
-		Log     Log     `yaml:"log"`
+		Renterd    Renterd    `yaml:"renterd"`
+		BlockStore BlockStore `yaml:"blockstore"`
+		IPFS       IPFS       `yaml:"ipfs"`
+		API        API        `yaml:"api"`
+		Log        Log        `yaml:"log"`
 	}
 )

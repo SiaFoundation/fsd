@@ -13,7 +13,7 @@ COPY . .
 
 # Build the Go application
 RUN go generate ./...
-RUN CGO_ENABLED=0 go build -o bin/ -tags='netgo timetzdata' -trimpath -a -ldflags '-s -w' ./cmd/fsd
+RUN CGO_ENABLED=1 go build -o bin/ -tags='netgo timetzdata' -trimpath -a -ldflags '-s -w -linkmode external -extldflags "-static"' ./cmd/fsd
 
 FROM scratch
 

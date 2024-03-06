@@ -19,9 +19,12 @@ import (
 	"go.sia.tech/fsd/config"
 	shttp "go.sia.tech/fsd/http"
 	"go.sia.tech/fsd/ipfs"
-	"go.sia.tech/fsd/persist/badger"
-	"go.sia.tech/fsd/sia"
+	"go.sia.tech/fsd/persist/sqlite"
+	"go.sia.tech/fsd/renterd"
+	"go.sia.tech/fsd/renterd/downloader"
 	"go.sia.tech/jape"
+	"go.sia.tech/renterd/bus"
+	"go.sia.tech/renterd/worker"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/yaml.v3"
@@ -35,6 +38,10 @@ var (
 			WorkerAddress: "http://localhost:9980/api/worker",
 			BusAddress:    "http://localhost:9980/api/bus",
 			Bucket:        "ipfs",
+		},
+		BlockStore: config.BlockStore{
+			CacheSize:     10000,
+			MaxConcurrent: 1000,
 		},
 		IPFS: config.IPFS{
 			Gateway: config.HTTPGateway{
@@ -119,13 +126,8 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 
-	db, err := badger.OpenDatabase(filepath.Join(dir, "fsd.badgerdb"), log.Named("badger"))
-	if err != nil {
-		log.Fatal("failed to open badger database", zap.Error(err))
-	}
-	defer db.Close()
-
 	var privateKey crypto.PrivKey
+	var err error
 	if cfg.IPFS.PrivateKey != "" {
 		buf, err := hex.DecodeString(strings.TrimPrefix(cfg.IPFS.PrivateKey, "ed25519:"))
 		if err != nil {
@@ -150,15 +152,36 @@ func main() {
 	}
 	defer ds.Close()
 
-	bs := sia.NewBlockStore(db, cfg.Renterd, log.Named("blockstore"))
+	workerClient := worker.NewClient(cfg.Renterd.WorkerAddress, cfg.Renterd.WorkerPassword)
+	busClient := bus.NewClient(cfg.Renterd.BusAddress, cfg.Renterd.BusPassword)
 
-	inode, err := ipfs.NewNode(ctx, privateKey, cfg.IPFS, ds, bs)
+	metadata, err := sqlite.OpenDatabase(filepath.Join(dir, "fsd.sqlite3"), log.Named("sqlite"))
+	if err != nil {
+		log.Fatal("failed to open sqlite database", zap.Error(err))
+	}
+	defer metadata.Close()
+
+	bd, err := downloader.NewBlockDownloader(metadata, cfg.Renterd.Bucket, cfg.BlockStore.CacheSize, cfg.BlockStore.MaxConcurrent, workerClient, log.Named("downloader"))
+	if err != nil {
+		log.Fatal("failed to create block downloader", zap.Error(err))
+	}
+
+	bs, err := renterd.NewBlockStore(
+		renterd.WithBucket(cfg.Renterd.Bucket),
+		renterd.WithMetadataStore(metadata),
+		renterd.WithWorker(workerClient),
+		renterd.WithBus(busClient),
+		renterd.WithDownloader(bd),
+		renterd.WithLog(log.Named("blockstore")))
+	if err != nil {
+		log.Fatal("failed to create blockstore", zap.Error(err))
+	}
+
+	ipfs, err := ipfs.NewNode(ctx, privateKey, cfg.IPFS, ds, bs, log.Named("ipfs"))
 	if err != nil {
 		log.Fatal("failed to start ipfs node", zap.Error(err))
 	}
-	defer inode.Close()
-
-	snode := sia.New(db, inode, cfg.Renterd, log.Named("sia"))
+	defer ipfs.Close()
 
 	apiListener, err := net.Listen("tcp", cfg.API.Address)
 	if err != nil {
@@ -173,12 +196,12 @@ func main() {
 	defer gatewayListener.Close()
 
 	apiServer := &http.Server{
-		Handler: jape.BasicAuth(cfg.API.Password)(shttp.NewAPIHandler(inode, snode, cfg, log.Named("api"))),
+		Handler: jape.BasicAuth(cfg.API.Password)(shttp.NewAPIHandler(ipfs, cfg, log.Named("api"))),
 	}
 	defer apiServer.Close()
 
 	gatewayServer := &http.Server{
-		Handler: shttp.NewIPFSGatewayHandler(inode, snode, cfg, log.Named("gateway")),
+		Handler: shttp.NewIPFSGatewayHandler(ipfs, cfg, log.Named("gateway")),
 	}
 	defer gatewayServer.Close()
 
@@ -201,7 +224,7 @@ func main() {
 	prettyKey := "ed25519:" + hex.EncodeToString(buf)
 
 	log.Info("fsd started",
-		zap.Stringer("peerID", inode.PeerID()),
+		zap.Stringer("peerID", ipfs.PeerID()),
 		zap.String("privateKey", prettyKey),
 		zap.String("apiAddress", apiListener.Addr().String()),
 		zap.String("gatewayAddress", gatewayListener.Addr().String()),
