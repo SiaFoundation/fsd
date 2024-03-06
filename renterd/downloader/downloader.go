@@ -91,7 +91,7 @@ func (h priorityQueue) Len() int { return len(h) }
 
 func (h priorityQueue) Less(i, j int) bool {
 	if h[i].priority != h[j].priority {
-		return h[i].priority < h[j].priority
+		return h[i].priority > h[j].priority
 	}
 	return h[i].timestamp.Before(h[j].timestamp)
 }
@@ -223,8 +223,10 @@ func (bd *BlockDownloader) downloadWorker(ctx context.Context, n int) {
 		}
 
 		task := heap.Pop(bd.queue).(*blockResponse)
+		log := log.With(zap.Stringer("cid", task.cid), zap.Stringer("priority", task.priority))
+		log.Debug("popped task from queue")
 		bd.mu.Unlock()
-		bd.doDownloadTask(task, log.With(zap.Stringer("cid", task.cid), zap.Stringer("priority", task.priority)))
+		bd.doDownloadTask(task, log)
 	}
 }
 
