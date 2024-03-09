@@ -218,11 +218,7 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 		dht.BucketSize(20),
 		dht.Concurrency(30),
 		dht.Datastore(ds),
-		dht.QueryFilter(dht.PublicQueryFilter),
-		dht.RoutingTableFilter(dht.PublicRoutingTableFilter),
-		dht.RoutingTablePeerDiversityFilter(dht.NewRTPeerDiversityFilter(host, 2, 3)),
 	}
-
 	frt, err := fullrt.NewFullRT(host, dht.DefaultPrefix, fullrt.DHTOption(dhtOpts...))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fullrt: %w", err)
