@@ -12,7 +12,7 @@ import (
 
 const (
 	longQueryDuration = 10 * time.Millisecond
-	longTxnDuration   = 10 * time.Millisecond
+	longTxnDuration   = 100 * time.Millisecond
 )
 
 type (
