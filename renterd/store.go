@@ -89,13 +89,7 @@ func (bs *BlockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 // Get returns a block by CID
 func (bs *BlockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
 	block, err := bs.downloader.Get(ctx, c)
-	if err != nil {
-		if !strings.Contains(err.Error(), "block not found") {
-			bs.log.Error("failed to download block", zap.Stringer("cid", c), zap.Error(err))
-		}
-		return nil, format.ErrNotFound{Cid: c}
-	}
-	return block, nil
+	return block, err
 }
 
 // GetSize returns the CIDs mapped BlockSize
