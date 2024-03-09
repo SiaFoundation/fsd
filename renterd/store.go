@@ -11,6 +11,8 @@ import (
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
+	"github.com/multiformats/go-multicodec"
+	"github.com/multiformats/go-multihash"
 	"go.sia.tech/renterd/api"
 	"go.sia.tech/renterd/bus"
 	"go.sia.tech/renterd/worker"
@@ -190,13 +192,24 @@ func (bs *BlockStore) AllKeysChan(ctx context.Context) (<-chan cid.Cid, error) {
 				return
 			}
 
-			log.Debug("got root CIDs", zap.Int("count", len(cids)))
+			log.Debug("got pinned CIDs", zap.Int("count", len(cids)))
 			for _, c := range cids {
 				select {
 				case ch <- c:
 				case <-ctx.Done():
 					close(ch)
 					return
+				}
+
+				// since only the v1 CID is stored, try to convert it to v0
+				if c.Type() == uint64(multicodec.DagPb) && c.Prefix().MhType == multihash.SHA2_256 {
+					cv0 := cid.NewCidV0(c.Hash())
+					select {
+					case ch <- cv0:
+					case <-ctx.Done():
+						close(ch)
+						return
+					}
 				}
 			}
 		}
