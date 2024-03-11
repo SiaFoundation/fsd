@@ -148,6 +148,8 @@ func (bd *BlockDownloader) doDownloadTask(task *blockResponse, log *zap.Logger) 
 		return
 	}
 
+	log.Debug("downloading block", zap.String("bucket", bucket), zap.String("key", key))
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
