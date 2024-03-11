@@ -14,7 +14,6 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
-	format "github.com/ipfs/go-ipld-format"
 	mh "github.com/multiformats/go-multihash"
 	"go.sia.tech/renterd/api"
 	"go.sia.tech/renterd/worker"
@@ -139,9 +138,7 @@ func (bd *BlockDownloader) doDownloadTask(task *blockResponse, log *zap.Logger) 
 	start := time.Now()
 	bucket, key, err := bd.store.BlockLocation(task.cid)
 	if err != nil {
-		if !format.IsNotFound(err) {
-			log.Error("failed to get block location", zap.Error(err))
-		}
+		log.Error("failed to get block location", zap.Error(err))
 		task.err = err
 		bd.cache.Remove(cidKey(task.cid))
 		close(task.ch)
@@ -155,9 +152,7 @@ func (bd *BlockDownloader) doDownloadTask(task *blockResponse, log *zap.Logger) 
 
 	err = bd.workerClient.DownloadObject(ctx, blockBuf, bucket, key, api.DownloadObjectOptions{})
 	if err != nil {
-		if !format.IsNotFound(err) {
-			log.Error("failed to download block", zap.Error(err))
-		}
+		log.Error("failed to download block", zap.Error(err))
 		task.err = err
 		bd.cache.Remove(cidKey(task.cid))
 		close(task.ch)
