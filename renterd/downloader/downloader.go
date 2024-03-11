@@ -134,7 +134,7 @@ func (br *blockResponse) block(ctx context.Context, c cid.Cid) (blocks.Block, er
 
 func (bd *BlockDownloader) doDownloadTask(task *blockResponse, log *zap.Logger) {
 	log = log.Named("doDownloadTask").With(zap.Stringer("cid", task.cid), zap.Stringer("priority", task.priority))
-	blockBuf := bytes.NewBuffer(make([]byte, 0, 1<<20))
+	blockBuf := bytes.NewBuffer(make([]byte, 0, 2<<20))
 
 	start := time.Now()
 	bucket, key, err := bd.store.BlockLocation(task.cid)
@@ -148,7 +148,10 @@ func (bd *BlockDownloader) doDownloadTask(task *blockResponse, log *zap.Logger) 
 		return
 	}
 
-	err = bd.workerClient.DownloadObject(context.Background(), blockBuf, bucket, key, api.DownloadObjectOptions{})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	err = bd.workerClient.DownloadObject(ctx, blockBuf, bucket, key, api.DownloadObjectOptions{})
 	if err != nil {
 		if !format.IsNotFound(err) {
 			log.Error("failed to download block", zap.Error(err))
