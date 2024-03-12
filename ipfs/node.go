@@ -63,6 +63,9 @@ func (n *Node) Close() error {
 
 // GetBlock fetches a block from the IPFS network
 func (n *Node) GetBlock(ctx context.Context, c cid.Cid) (format.Node, error) {
+	// it should never take more than a minute to fetch a single block
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
 	return n.dagService.Get(ctx, c)
 }
 
