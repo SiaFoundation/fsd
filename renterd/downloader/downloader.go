@@ -210,17 +210,18 @@ func (bd *BlockDownloader) doDownloadTask(task *blockResponse, log *zap.Logger) 
 	}()
 
 	buf, err := bd.downloadBlockData(ctx, task.cid, task.bucket, task.key)
+	bd.mu.Lock()
 	if err != nil {
 		log.Error("failed to download block", zap.Error(err))
 		task.err = err
-		delete(bd.inflight, cidKey(task.cid))
 	} else {
 		log.Debug("block downloaded", zap.Int("size", len(buf)), zap.Duration("elapsed", time.Since(start)))
 		task.b = buf
 		bd.dataCache.Add(cidKey(task.cid), buf)
 	}
 	close(task.ch)
-
+	delete(bd.inflight, cidKey(task.cid))
+	bd.mu.Unlock()
 }
 
 func (bd *BlockDownloader) downloadWorker(ctx context.Context, n int) {
@@ -241,7 +242,7 @@ func (bd *BlockDownloader) downloadWorker(ctx context.Context, n int) {
 		task := heap.Pop(bd.queue).(*blockResponse)
 		log := log.With(zap.Stringer("cid", task.cid), zap.Stringer("priority", task.priority))
 		log.Debug("popped task from queue")
-		bd.mu.Unlock()
+		bd.mu.Unlock() // unlock prior to downloading to prevent blocking other workers
 		bd.doDownloadTask(task, log)
 	}
 }
