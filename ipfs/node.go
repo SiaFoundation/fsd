@@ -63,9 +63,6 @@ func (n *Node) Close() error {
 
 // GetBlock fetches a block from the IPFS network
 func (n *Node) GetBlock(ctx context.Context, c cid.Cid) (format.Node, error) {
-	// it should never take more than a minute to fetch a single block
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer cancel()
 	return n.dagService.Get(ctx, c)
 }
 
@@ -231,6 +228,7 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 		bitswap.EngineBlockstoreWorkerCount(600),
 		bitswap.TaskWorkerCount(600),
 		bitswap.MaxOutstandingBytesPerPeer(int(5 << 20)),
+		bitswap.ProvideEnabled(true),
 	}
 
 	bitswapNet := bnetwork.NewFromIpfsHost(host, frt)
