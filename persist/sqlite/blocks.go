@@ -57,7 +57,7 @@ func (s *Store) Pin(b renterd.PinnedBlock) error {
 			return fmt.Errorf("failed to insert block: %w", err)
 		}
 
-		_, err = tx.Exec(`INSERT INTO pinned_blocks (block_id, renterd_bucket, renterd_object_key) VALUES ($1, $2, $3)`, parentBlockID, b.Bucket, b.ObjectKey)
+		_, err = tx.Exec(`INSERT INTO pinned_blocks (block_id, renterd_bucket, renterd_object_key) VALUES ($1, $2, $3) ON CONFLICT (block_id) DO NOTHING`, parentBlockID, b.Bucket, b.ObjectKey)
 		if err != nil {
 			return fmt.Errorf("failed to insert pinned block: %w", err)
 		}
