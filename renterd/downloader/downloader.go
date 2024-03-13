@@ -151,15 +151,15 @@ func (bd *BlockDownloader) downloadBlockData(ctx context.Context, c cid.Cid, buc
 
 func (bd *BlockDownloader) queueRelated(c cid.Cid) {
 	log := bd.log.Named("queueRelated").With(zap.Stringer("cid", c))
-	siblings, err := bd.store.BlockSiblings(c, 10)
+	siblings, err := bd.store.BlockSiblings(c, 64)
 	if err != nil {
 		log.Error("failed to get block siblings", zap.Error(err))
 		return
 	}
 
-	children, err := bd.store.BlockChildren(c, 10)
+	children, err := bd.store.BlockChildren(c, 64)
 	if err != nil {
-		log.Error("failed to get block siblings", zap.Error(err))
+		log.Error("failed to get block children", zap.Error(err))
 		return
 	}
 
@@ -174,7 +174,7 @@ func (bd *BlockDownloader) queueRelated(c cid.Cid) {
 		}
 
 		if !bd.dataCache.Contains(cidKey(sibling)) {
-			if _, ok := bd.queueBlock(sibling, bucket, key, downloadPriorityLow); ok {
+			if _, ok := bd.queueBlock(sibling, bucket, key, downloadPriorityMedium); ok {
 				log.Debug("queued sibling", zap.Stringer("sibling", sibling))
 			}
 		}
