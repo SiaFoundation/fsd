@@ -1,9 +1,11 @@
 package http
 
 import (
+	"errors"
 	"io"
 	"net/http"
 
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"go.sia.tech/fsd/config"
@@ -40,7 +42,8 @@ func (as *apiServer) handleCARPin(jc jape.Context) {
 	}
 }
 
-func (as *apiServer) handleCIDPin(jc jape.Context) {
+// handleBlocksCIDPUT handles requests to pin a block by CID
+func (as *apiServer) handleBlocksCIDPUT(jc jape.Context) {
 	var c cid.Cid
 	var recursive bool
 	if jc.DecodeParam("cid", &c) != nil {
@@ -54,6 +57,37 @@ func (as *apiServer) handleCIDPin(jc jape.Context) {
 	}
 }
 
+// handleBlocksPUT handles requests to upload a raw block
+func (as *apiServer) handleBlocksPUT(jc jape.Context) {
+	ctx := jc.Request.Context()
+	defer jc.Request.Body.Close()
+
+	lr := io.LimitReader(jc.Request.Body, 4<<20) // 4MB
+	buf, err := io.ReadAll(lr)
+	if errors.Is(err, io.ErrUnexpectedEOF) {
+		jc.Error(err, http.StatusRequestEntityTooLarge)
+		return
+	} else if err != nil {
+		jc.Error(err, http.StatusBadRequest)
+		return
+	}
+
+	block := blocks.NewBlock(buf)
+
+	ok, err := as.ipfs.HasBlock(ctx, block.Cid())
+	if err != nil {
+		jc.Error(err, http.StatusBadRequest)
+		return
+	} else if ok {
+		jc.Encode(block.Cid())
+		return
+	} else if err := as.ipfs.AddBlock(ctx, block); err != nil {
+		jc.Error(err, http.StatusInternalServerError)
+		return
+	}
+	jc.Encode(block.Cid())
+}
+
 // NewAPIHandler returns a new http.Handler that handles requests to the api
 func NewAPIHandler(ipfs *ipfs.Node, cfg config.Config, log *zap.Logger) http.Handler {
 	s := &apiServer{
@@ -63,7 +97,8 @@ func NewAPIHandler(ipfs *ipfs.Node, cfg config.Config, log *zap.Logger) http.Han
 	return jape.Mux(map[string]jape.Handler{
 		"POST /api/unixfs/upload": s.handleUnixFSUpload,
 		"PUT /api/car/pin":        s.handleCARPin,
-		"PUT /api/cid/:cid/pin":   s.handleCIDPin,
+		"PUT /api/blocks":         s.handleBlocksPUT,
+		"PUT /api/blocks/:cid":    s.handleBlocksCIDPUT,
 		"GET /api/peers":          s.handleListPeers,
 		"PUT /api/peers":          s.handleAddPeer,
 	})

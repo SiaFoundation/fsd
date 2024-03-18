@@ -12,6 +12,7 @@ import (
 	"github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/boxo/ipld/merkledag"
 	"github.com/ipfs/boxo/provider"
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	format "github.com/ipfs/go-ipld-format"
@@ -69,6 +70,11 @@ func (n *Node) GetBlock(ctx context.Context, c cid.Cid) (format.Node, error) {
 // HasBlock checks if a block is locally pinned
 func (n *Node) HasBlock(ctx context.Context, c cid.Cid) (bool, error) {
 	return n.blockService.Blockstore().Has(ctx, c)
+}
+
+// AddBlock adds a generic block to the IPFS node
+func (n *Node) AddBlock(ctx context.Context, block blocks.Block) error {
+	return n.blockService.AddBlock(ctx, block)
 }
 
 // PeerID returns the peer ID of the node
