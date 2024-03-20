@@ -3,7 +3,6 @@ package http
 import (
 	"context"
 	"errors"
-	"mime"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -101,7 +100,7 @@ func (is *ipfsGatewayServer) fetchAllowed(ctx context.Context, c cid.Cid) bool {
 
 func buildDispositionHeader(params url.Values) string {
 	disposition := "inline"
-	if download, ok := params["download"]; ok && strings.EqualFold(download[0], "true") {
+	if strings.EqualFold(params.Get("download"), "true") {
 		disposition = "attachment"
 	}
 	if filename, ok := params["filename"]; ok {
@@ -112,9 +111,9 @@ func buildDispositionHeader(params url.Values) string {
 
 func getFileName(path []string, params url.Values) string {
 	if filename, ok := params["filename"]; ok {
-		return mime.TypeByExtension(filepath.Ext(filename[0]))
+		return filepath.Ext(filename[0])
 	} else if len(path) > 0 {
-		return mime.TypeByExtension(filepath.Ext(path[len(path)-1]))
+		return filepath.Ext(path[len(path)-1])
 	}
 	return ""
 }
@@ -183,14 +182,27 @@ func (is *ipfsGatewayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Write(block.RawData())
 	default:
-		rsc, err := is.ipfs.DownloadUnixFile(ctx, c, path)
+		if strings.EqualFold(query.Get("download"), "true") {
+			rsc, err := is.ipfs.DownloadUnixFile(ctx, c, path)
+			if err != nil {
+				http.Error(w, "", http.StatusNotFound)
+				is.log.Error("failed to download cid", zap.Error(err))
+				return
+			}
+			defer rsc.Close()
+			http.ServeContent(w, r, getFileName(path, query), time.Now(), rsc)
+			return
+		}
+
+		rsc, filename, err := is.ipfs.ServeUnixFile(ctx, c, path)
 		if err != nil {
 			http.Error(w, "", http.StatusNotFound)
 			is.log.Error("failed to download cid", zap.Error(err))
 			return
 		}
 		defer rsc.Close()
-		http.ServeContent(w, r, getFileName(path, query), time.Now(), rsc)
+		http.ServeContent(w, r, filename, time.Now(), rsc)
+
 	}
 }
 

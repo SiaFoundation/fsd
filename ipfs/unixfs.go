@@ -8,6 +8,7 @@ import (
 
 	chunker "github.com/ipfs/boxo/chunker"
 	"github.com/ipfs/boxo/ipld/merkledag"
+	"github.com/ipfs/boxo/ipld/unixfs"
 	"github.com/ipfs/boxo/ipld/unixfs/importer/balanced"
 	ihelpers "github.com/ipfs/boxo/ipld/unixfs/importer/helpers"
 	fsio "github.com/ipfs/boxo/ipld/unixfs/io"
@@ -54,44 +55,98 @@ func UnixFSWithBlockSize(b int64) UnixFSOption {
 	}
 }
 
+func traverseNode(ctx context.Context, ng format.NodeGetter, parent format.Node, path []string) (format.Node, error) {
+	if len(path) == 0 {
+		return parent, nil
+	}
+
+	childLink, rem, err := parent.Resolve(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve path %q: %w", strings.Join(path, "/"), err)
+	}
+
+	switch v := childLink.(type) {
+	case *format.Link:
+		childNode, err := ng.Get(ctx, v.Cid)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get child node %q: %w", v.Cid, err)
+		}
+		return traverseNode(ctx, ng, childNode, rem)
+	default:
+		return nil, fmt.Errorf("expected link node, got %T", childLink)
+	}
+}
+
 // DownloadUnixFile downloads a UnixFS CID from IPFS
 func (n *Node) DownloadUnixFile(ctx context.Context, c cid.Cid, path []string) (io.ReadSeekCloser, error) {
 	dagSess := merkledag.NewSession(ctx, n.dagService)
+
 	rootNode, err := dagSess.Get(ctx, c)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root node: %w", err)
 	}
 
-	var traverse func(context.Context, format.Node, []string) (format.Node, error)
-	traverse = func(ctx context.Context, parent format.Node, path []string) (format.Node, error) {
-		if len(path) == 0 {
-			return parent, nil
-		}
-
-		childLink, rem, err := parent.Resolve(path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve path %q: %w", strings.Join(path, "/"), err)
-		}
-
-		switch v := childLink.(type) {
-		case *format.Link:
-			childNode, err := dagSess.Get(ctx, v.Cid)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get child node %q: %w", v.Cid, err)
-			}
-			return traverse(ctx, childNode, rem)
-		default:
-			return nil, fmt.Errorf("expected link node, got %T", childLink)
-		}
-	}
-
-	node, err := traverse(ctx, rootNode, path)
+	node, err := traverseNode(ctx, n.dagService, rootNode, path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to traverse path: %w", err)
+		return nil, fmt.Errorf("failed to get root node: %w", err)
 	}
 
 	dr, err := fsio.NewDagReader(ctx, node, dagSess)
 	return dr, err
+}
+
+// ServeUnixFile is a special case of DownloadUnixFile for single-page webapps
+// that serves the index file if the cid is a directory or the path is not found
+func (n *Node) ServeUnixFile(ctx context.Context, c cid.Cid, path []string) (io.ReadSeekCloser, string, error) {
+	dagSess := merkledag.NewSession(ctx, n.dagService)
+
+	rootNode, err := dagSess.Get(ctx, c)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get root node: %w", err)
+	}
+
+	var indexFileCid *cid.Cid
+	for _, link := range rootNode.Links() {
+		if link.Name == "index.html" {
+			indexFileCid = &link.Cid
+			break
+		}
+	}
+
+	serveIndex := func() (io.ReadSeekCloser, string, error) {
+		node, err := dagSess.Get(ctx, *indexFileCid)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get index file: %w", err)
+		}
+		dr, err := fsio.NewDagReader(ctx, node, dagSess)
+		return dr, "index.html", err
+	}
+
+	node, err := traverseNode(ctx, n.dagService, rootNode, path)
+	if err != nil && strings.Contains(err.Error(), "failed to resolve path") {
+		if indexFileCid != nil {
+			return serveIndex()
+		}
+	} else if err != nil {
+		return nil, "", fmt.Errorf("failed to traverse node: %w", err)
+	}
+
+	// if the resolved node is a directory and the index file exists
+	// serve it.
+	fsnode, err := unixfs.ExtractFSNode(node)
+	if err == nil {
+		if fsnode.IsDir() && indexFileCid != nil {
+			return serveIndex()
+		}
+	}
+
+	filename := c.String()
+	if len(path) > 0 {
+		filename = path[len(path)-1]
+	}
+
+	dr, err := fsio.NewDagReader(ctx, node, dagSess)
+	return dr, filename, err
 }
 
 // UploadUnixFile uploads a UnixFS file to IPFS
