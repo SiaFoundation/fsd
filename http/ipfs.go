@@ -3,8 +3,10 @@ package http
 import (
 	"context"
 	"errors"
+	"mime"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -108,6 +110,15 @@ func buildDispositionHeader(params url.Values) string {
 	return disposition
 }
 
+func getFileName(path []string, params url.Values) string {
+	if filename, ok := params["filename"]; ok {
+		return mime.TypeByExtension(filepath.Ext(filename[0]))
+	} else if len(path) > 0 {
+		return mime.TypeByExtension(filepath.Ext(path[len(path)-1]))
+	}
+	return ""
+}
+
 func (is *ipfsGatewayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -179,7 +190,7 @@ func (is *ipfsGatewayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer rsc.Close()
-		http.ServeContent(w, r, "", time.Now(), rsc)
+		http.ServeContent(w, r, getFileName(path, query), time.Now(), rsc)
 	}
 }
 
