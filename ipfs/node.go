@@ -74,7 +74,12 @@ func (n *Node) HasBlock(ctx context.Context, c cid.Cid) (bool, error) {
 
 // AddBlock adds a generic block to the IPFS node
 func (n *Node) AddBlock(ctx context.Context, block blocks.Block) error {
-	return n.blockService.AddBlock(ctx, block)
+	if err := n.blockService.AddBlock(ctx, block); err != nil {
+		return fmt.Errorf("failed to add block: %w", err)
+	} else if err := n.provider.Provide(block.Cid()); err != nil {
+		return fmt.Errorf("failed to provide block: %w", err)
+	}
+	return nil
 }
 
 // PeerID returns the peer ID of the node
