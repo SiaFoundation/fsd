@@ -140,7 +140,7 @@ func TestDownload(t *testing.T) {
 
 	ds, err := levelds.NewDatastore(filepath.Join(t.TempDir(), "fsdds.leveldb"), nil)
 	if err != nil {
-		log.Fatal("failed to open leveldb datastore", zap.Error(err))
+		t.Fatal("failed to open leveldb datastore", zap.Error(err))
 	}
 	defer ds.Close()
 
@@ -195,7 +195,7 @@ func TestDownload2(t *testing.T) {
 
 	ds, err := levelds.NewDatastore(filepath.Join(t.TempDir(), "fsdds.leveldb"), nil)
 	if err != nil {
-		log.Fatal("failed to open leveldb datastore", zap.Error(err))
+		t.Fatal("failed to open leveldb datastore", zap.Error(err))
 	}
 	defer ds.Close()
 
