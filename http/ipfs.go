@@ -202,7 +202,6 @@ func (is *ipfsGatewayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		defer rsc.Close()
 		http.ServeContent(w, r, filename, time.Now(), rsc)
-
 	}
 }
 
