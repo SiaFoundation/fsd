@@ -89,6 +89,12 @@ func (n *Node) PeerID() peer.ID {
 
 // Provide broadcasts a CID to the network
 func (n *Node) Provide(c cid.Cid) error {
+	if c.Version() == 0 {
+		v1Cid := cid.NewCidV1(c.Type(), c.Hash())
+		if err := n.provider.Provide(v1Cid); err != nil {
+			return fmt.Errorf("failed to provide v1 CID: %w", err)
+		}
+	}
 	return n.provider.Provide(c)
 }
 
