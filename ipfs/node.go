@@ -176,6 +176,11 @@ func (n *Node) PinCAR(ctx context.Context, r io.Reader) error {
 	return nil
 }
 
+// ReproviderStats returns the reprovider statistics
+func (n *Node) ReproviderStats() (provider.ReproviderStats, error) {
+	return n.provider.Stat()
+}
+
 func mustParsePeer(s string) peer.AddrInfo {
 	info, err := peer.AddrInfoFromString(s)
 	if err != nil {
@@ -257,7 +262,7 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 	providerOpts := []provider.Option{
 		provider.KeyProvider(provider.NewBlockstoreProvider(bs)),
 		provider.Online(frt),
-		provider.ReproviderInterval(18 * time.Hour),
+		provider.ReproviderInterval(22 * time.Hour),
 	}
 
 	prov, err := provider.New(ds, providerOpts...)

@@ -88,6 +88,20 @@ func (as *apiServer) handleBlocksPUT(jc jape.Context) {
 	jc.Encode(block.Cid())
 }
 
+func (as *apiServer) handleProviderStats(jc jape.Context) {
+	stats, err := as.ipfs.ReproviderStats()
+	if err != nil {
+		jc.Error(err, http.StatusInternalServerError)
+		return
+	}
+	jc.Encode(ProviderStatsResp{
+		TotalProvides:          stats.TotalProvides,
+		LastReprovideBatchSize: stats.LastReprovideBatchSize,
+		AvgProvideDuration:     stats.AvgProvideDuration,
+		LastReprovideDuration:  stats.LastReprovideDuration,
+	})
+}
+
 // NewAPIHandler returns a new http.Handler that handles requests to the api
 func NewAPIHandler(ipfs *ipfs.Node, cfg config.Config, log *zap.Logger) http.Handler {
 	s := &apiServer{
@@ -101,5 +115,6 @@ func NewAPIHandler(ipfs *ipfs.Node, cfg config.Config, log *zap.Logger) http.Han
 		"PUT /api/blocks/:cid":    s.handleBlocksCIDPUT,
 		"GET /api/peers":          s.handleListPeers,
 		"PUT /api/peers":          s.handleAddPeer,
+		"GET /api/provider/stats": s.handleProviderStats,
 	})
 }
