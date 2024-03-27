@@ -84,13 +84,15 @@ func BenchmarkBlockLocation(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
-		c := cids[i%len(cids)]
-		bucket, key, err := db.BlockLocation(c)
-		if err != nil {
-			b.Fatal(err)
-		} else if bucket != "test" || key != c.String() {
-			b.Fatalf("unexpected result: %v %v", bucket, key)
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			c := cids[frand.Intn(len(cids))]
+			bucket, key, err := db.BlockLocation(c)
+			if err != nil {
+				b.Fatal(err)
+			} else if bucket != "test" || key != c.String() {
+				b.Fatalf("unexpected result: %v %v", bucket, key)
+			}
 		}
-	}
+	})
 }
