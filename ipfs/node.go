@@ -11,7 +11,6 @@ import (
 	"github.com/ipfs/boxo/blockservice"
 	"github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/boxo/ipld/merkledag"
-	"github.com/ipfs/boxo/provider"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -42,21 +41,19 @@ var bootstrapPeers = []peer.AddrInfo{
 
 // A Node is a minimal IPFS node
 type Node struct {
-	log  *zap.Logger
-	host host.Host
-	frt  *fullrt.FullRT
-
+	log          *zap.Logger
+	host         host.Host
+	frt          *fullrt.FullRT
+	reprovider   *Reprovider
 	blockService blockservice.BlockService
 	dagService   format.DAGService
 	bitswap      *bitswap.Bitswap
-	provider     provider.System
 }
 
 // Close closes the node
 func (n *Node) Close() error {
 	n.frt.Close()
 	n.bitswap.Close()
-	n.provider.Close()
 	n.host.Close()
 	n.blockService.Close()
 	return nil
@@ -76,8 +73,6 @@ func (n *Node) HasBlock(ctx context.Context, c cid.Cid) (bool, error) {
 func (n *Node) AddBlock(ctx context.Context, block blocks.Block) error {
 	if err := n.blockService.AddBlock(ctx, block); err != nil {
 		return fmt.Errorf("failed to add block: %w", err)
-	} else if err := n.provider.Provide(block.Cid()); err != nil {
-		return fmt.Errorf("failed to provide block: %w", err)
 	}
 	return nil
 }
@@ -85,17 +80,6 @@ func (n *Node) AddBlock(ctx context.Context, block blocks.Block) error {
 // PeerID returns the peer ID of the node
 func (n *Node) PeerID() peer.ID {
 	return n.frt.Host().ID()
-}
-
-// Provide broadcasts a CID to the network
-func (n *Node) Provide(c cid.Cid) error {
-	if c.Version() == 0 {
-		v1Cid := cid.NewCidV1(c.Type(), c.Hash())
-		if err := n.provider.Provide(v1Cid); err != nil {
-			return fmt.Errorf("failed to provide v1 CID: %w", err)
-		}
-	}
-	return n.provider.Provide(c)
 }
 
 // Peers returns the list of peers in the routing table
@@ -118,7 +102,7 @@ func (n *Node) Pin(ctx context.Context, root cid.Cid, recursive bool) error {
 		} else if err := n.blockService.AddBlock(ctx, block); err != nil {
 			return fmt.Errorf("failed to add block: %w", err)
 		}
-		return n.provider.Provide(root)
+		return nil
 	}
 
 	sess := merkledag.NewSession(ctx, n.dagService)
@@ -155,7 +139,8 @@ func (n *Node) Pin(ctx context.Context, root cid.Cid, recursive bool) error {
 	if err != nil {
 		return fmt.Errorf("failed to walk DAG: %w", err)
 	}
-	return n.provider.Provide(root)
+	n.reprovider.Trigger()
+	return nil
 }
 
 // PinCAR pins all blocks in a CAR file to the node. The input reader
@@ -173,12 +158,8 @@ func (n *Node) PinCAR(ctx context.Context, r io.Reader) error {
 		}
 		log.Debug("added block", zap.Stringer("cid", block.Cid()))
 	}
+	n.reprovider.Trigger()
 	return nil
-}
-
-// ReproviderStats returns the reprovider statistics
-func (n *Node) ReproviderStats() (provider.ReproviderStats, error) {
-	return n.provider.Stat()
 }
 
 func mustParsePeer(s string) peer.AddrInfo {
@@ -190,8 +171,8 @@ func mustParsePeer(s string) peer.AddrInfo {
 }
 
 // NewNode creates a new IPFS node
-func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds datastore.Batching, bs blockstore.Blockstore, log *zap.Logger) (*Node, error) {
-	cmgr, err := connmgr.NewConnManager(600, 900)
+func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, rs ReprovideStore, ds datastore.Batching, bs blockstore.Blockstore, log *zap.Logger) (*Node, error) {
+	cmgr, err := connmgr.NewConnManager(900, 1800)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create connection manager: %w", err)
 	}
@@ -259,17 +240,6 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 	blockServ := blockservice.New(bs, bitswap)
 	dagService := merkledag.NewDAGService(blockServ)
 
-	providerOpts := []provider.Option{
-		provider.KeyProvider(provider.NewBlockstoreProvider(bs)),
-		provider.Online(frt),
-		provider.ReproviderInterval(22 * time.Hour),
-	}
-
-	prov, err := provider.New(ds, providerOpts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create provider: %w", err)
-	}
-
 	for _, p := range cfg.Peers {
 		mh := make([]multiaddr.Multiaddr, 0, len(p.Addresses))
 		for _, addr := range p.Addresses {
@@ -283,6 +253,9 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 		host.Peerstore().AddAddrs(p.ID, mh, peerstore.PermanentAddrTTL)
 	}
 
+	rp := NewReprovider(frt, rs, log.Named("reprovider"))
+	go rp.Run(ctx, 16*time.Hour)
+
 	return &Node{
 		log:          log,
 		frt:          frt,
@@ -290,6 +263,5 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, ds
 		bitswap:      bitswap,
 		blockService: blockServ,
 		dagService:   dagService,
-		provider:     prov,
 	}, nil
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"go.sia.tech/fsd/config"
 	"go.sia.tech/fsd/ipfs"
+	"go.sia.tech/fsd/persist/sqlite"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 	"lukechampine.com/frand"
@@ -144,11 +145,17 @@ func TestDownload(t *testing.T) {
 	}
 	defer ds.Close()
 
+	db, err := sqlite.OpenDatabase(filepath.Join(t.TempDir(), "fsd.sqlite3"), log.Named("sqlite"))
+	if err != nil {
+		log.Fatal("failed to open sqlite database", zap.Error(err))
+	}
+	defer db.Close()
+
 	bs := &memoryBlockStore{
 		blocks: make(map[cid.Cid][]byte),
 	}
 
-	node, err := ipfs.NewNode(ctx, privateKey, config.IPFS{}, ds, bs, log.Named("ipfs"))
+	node, err := ipfs.NewNode(ctx, privateKey, config.IPFS{}, db, ds, bs, log.Named("ipfs"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,11 +206,17 @@ func TestDownload2(t *testing.T) {
 	}
 	defer ds.Close()
 
+	db, err := sqlite.OpenDatabase(filepath.Join(t.TempDir(), "fsd.sqlite3"), log.Named("sqlite"))
+	if err != nil {
+		log.Fatal("failed to open sqlite database", zap.Error(err))
+	}
+	defer db.Close()
+
 	bs := &memoryBlockStore{
 		blocks: make(map[cid.Cid][]byte),
 	}
 
-	node, err := ipfs.NewNode(ctx, privateKey, config.IPFS{}, ds, bs, log.Named("ipfs"))
+	node, err := ipfs.NewNode(ctx, privateKey, config.IPFS{}, db, ds, bs, log.Named("ipfs"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,56 +248,3 @@ func TestDownload2(t *testing.T) {
 		t.Fatalf("unexpected hash: %x", h.Sum(nil))
 	}
 }
-
-/*
-	func TestPin(t *testing.T) {
-		log := zaptest.NewLogger(t)
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		privateKey, _, err := crypto.GenerateEd25519Key(frand.Reader)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		store, err := badger.OpenDatabase(filepath.Join(t.TempDir(), "fsd.badgerdb"), log.Named("badger"))
-		if err != nil {
-			log.Fatal("failed to open badger database", zap.Error(err))
-		}
-		defer store.Close()
-
-		memBlockStore := &memoryBlockStore{
-			blocks: make(map[cid.Cid][]byte),
-		}
-
-		node, err := ipfs.NewNode(ctx, privateKey, config.IPFS{}, memBlockStore)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer node.Close()
-
-		time.Sleep(time.Second)
-
-		c := cid.MustParse("QmdmQXB2mzChmMeKY47C43LxUdg1NDJ5MWcKMKxDu7RgQm")
-
-		_, err = node.PinCID(ctx, c, func(c cid.Cid, path string) error {
-			r, err := node.DownloadCID(ctx, c, nil)
-			if err != nil {
-				return err
-			}
-			defer r.Close()
-			h := sha256.New()
-			if _, err := io.Copy(h, r); err != nil {
-				return err
-			}
-			shaChecksum := hex.EncodeToString(h.Sum(nil))
-			t.Log("pinned", c, path, shaChecksum)
-			return nil
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Fail()
-	}
-*/

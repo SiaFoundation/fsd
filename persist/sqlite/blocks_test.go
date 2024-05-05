@@ -1,4 +1,4 @@
-package sqlite
+package sqlite_test
 
 import (
 	"path/filepath"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
+	"go.sia.tech/fsd/persist/sqlite"
 	"go.sia.tech/fsd/renterd"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -15,7 +16,7 @@ import (
 
 func TestBlockLocation(t *testing.T) {
 	log := zaptest.NewLogger(t)
-	db, err := OpenDatabase(filepath.Join(t.TempDir(), "fsd.sqlite3"), log.Named("sqlite3"))
+	db, err := sqlite.OpenDatabase(filepath.Join(t.TempDir(), "fsd.sqlite3"), log.Named("sqlite3"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +56,7 @@ func TestBlockLocation(t *testing.T) {
 
 func BenchmarkBlockLocation(b *testing.B) {
 	log := zaptest.NewLogger(b)
-	db, err := OpenDatabase(filepath.Join(b.TempDir(), "fsd.sqlite3"), log.Named("sqlite3"))
+	db, err := sqlite.OpenDatabase(filepath.Join(b.TempDir(), "fsd.sqlite3"), log.Named("sqlite3"))
 	if err != nil {
 		b.Fatal(err)
 	}

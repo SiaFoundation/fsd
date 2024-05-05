@@ -155,20 +155,20 @@ func main() {
 	workerClient := worker.NewClient(cfg.Renterd.WorkerAddress, cfg.Renterd.WorkerPassword)
 	busClient := bus.NewClient(cfg.Renterd.BusAddress, cfg.Renterd.BusPassword)
 
-	metadata, err := sqlite.OpenDatabase(filepath.Join(dir, "fsd.sqlite3"), log.Named("sqlite"))
+	db, err := sqlite.OpenDatabase(filepath.Join(dir, "fsd.sqlite3"), log.Named("sqlite"))
 	if err != nil {
 		log.Fatal("failed to open sqlite database", zap.Error(err))
 	}
-	defer metadata.Close()
+	defer db.Close()
 
-	bd, err := downloader.NewBlockDownloader(metadata, cfg.Renterd.Bucket, cfg.BlockStore.CacheSize, cfg.BlockStore.MaxConcurrent, workerClient, log.Named("downloader"))
+	bd, err := downloader.NewBlockDownloader(db, cfg.Renterd.Bucket, cfg.BlockStore.CacheSize, cfg.BlockStore.MaxConcurrent, workerClient, log.Named("downloader"))
 	if err != nil {
 		log.Fatal("failed to create block downloader", zap.Error(err))
 	}
 
 	bs, err := renterd.NewBlockStore(
 		renterd.WithBucket(cfg.Renterd.Bucket),
-		renterd.WithMetadataStore(metadata),
+		renterd.WithMetadataStore(db),
 		renterd.WithWorker(workerClient),
 		renterd.WithBus(busClient),
 		renterd.WithDownloader(bd),
@@ -177,7 +177,7 @@ func main() {
 		log.Fatal("failed to create blockstore", zap.Error(err))
 	}
 
-	ipfs, err := ipfs.NewNode(ctx, privateKey, cfg.IPFS, ds, bs, log.Named("ipfs"))
+	ipfs, err := ipfs.NewNode(ctx, privateKey, cfg.IPFS, db, ds, bs, log.Named("ipfs"))
 	if err != nil {
 		log.Fatal("failed to start ipfs node", zap.Error(err))
 	}

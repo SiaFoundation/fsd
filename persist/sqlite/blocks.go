@@ -8,6 +8,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
+	"go.sia.tech/fsd/ipfs"
 	"go.sia.tech/fsd/renterd"
 	"go.uber.org/zap"
 )
@@ -57,7 +58,7 @@ func (s *Store) Pin(b renterd.PinnedBlock) error {
 			return fmt.Errorf("failed to insert block: %w", err)
 		}
 
-		_, err = tx.Exec(`INSERT INTO pinned_blocks (block_id, renterd_bucket, renterd_object_key) VALUES ($1, $2, $3) ON CONFLICT (block_id) DO NOTHING`, parentBlockID, b.Bucket, b.ObjectKey)
+		_, err = tx.Exec(`INSERT INTO pinned_blocks (block_id, renterd_bucket, renterd_object_key, created_at, updated_at, last_announcement) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (block_id) DO NOTHING`, parentBlockID, b.Bucket, b.ObjectKey, dbEncode(time.Now()), dbEncode(time.Now()), dbEncode(time.Time{}))
 		if err != nil {
 			return fmt.Errorf("failed to insert pinned block: %w", err)
 		}
@@ -83,6 +84,49 @@ func (s *Store) Pin(b renterd.PinnedBlock) error {
 		}
 		return nil
 	})
+}
+
+// SetLastAnnouncement updates the last announcement time of a block.
+func (s *Store) SetLastAnnouncement(cids []cid.Cid, t time.Time) error {
+	return s.transaction(func(tx *txn) error {
+		for _, c := range cids {
+			c = normalizeCid(c)
+			_, err := tx.Exec(`UPDATE pinned_blocks SET last_announcement=$1 WHERE block_id IN (SELECT id FROM blocks WHERE cid=$2)`, dbEncode(t), dbEncode(c))
+			if err != nil {
+				return fmt.Errorf("failed to update last announcement: %w", err)
+			}
+		}
+		return nil
+	})
+}
+
+// ProvideCIDs returns up to limit CIDs sorted by their last announcement time
+// ASC. The announcement time should be compared with the expected reprovide
+// interval to determine if the CID should be announced.
+func (s *Store) ProvideCIDs(limit int) (cids []ipfs.PinnedCID, err error) {
+	err = s.transaction(func(tx *txn) error {
+		const query = `SELECT b.cid
+FROM pinned_blocks pb
+INNER JOIN blocks b ON (b.id=pb.block_id)
+ORDER BY pb.last_announcement ASC
+LIMIT $1`
+
+		rows, err := tx.Query(query, limit)
+		if err != nil {
+			return fmt.Errorf("failed to query: %w", err)
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var p ipfs.PinnedCID
+			if err := rows.Scan(dbDecode(&p.CID), dbDecode(&p.LastAnnouncement)); err != nil {
+				return fmt.Errorf("failed to scan: %w", err)
+			}
+			cids = append(cids, p)
+		}
+		return rows.Err()
+	})
+	return
 }
 
 // BlockChildren returns the next n children of a given block. If the block

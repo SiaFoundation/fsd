@@ -175,9 +175,7 @@ func (n *Node) UploadUnixFile(ctx context.Context, r io.Reader, opts ...UnixFSOp
 	rootNode, err := balanced.Layout(db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create balanced layout: %w", err)
-	} else if err := n.provider.Provide(rootNode.Cid()); err != nil {
-		return nil, fmt.Errorf("failed to provide root node: %w", err)
 	}
-
+	n.reprovider.Trigger()
 	return rootNode, nil
 }
