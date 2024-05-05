@@ -18,6 +18,11 @@ type (
 		LastAnnouncement time.Time `json:"lastAnnouncement"`
 	}
 
+	Provider interface {
+		Ready() bool
+		provider.ProvideMany
+	}
+
 	// A ReprovideStore stores CIDs that need to be periodically announced.
 	ReprovideStore interface {
 		ProvideCIDs(limit int) ([]PinnedCID, error)
@@ -27,7 +32,7 @@ type (
 
 // A Reprovider periodically announces CIDs to the IPFS network.
 type Reprovider struct {
-	provider provider.ProvideMany
+	provider Provider
 	store    ReprovideStore
 	log      *zap.Logger
 
@@ -53,7 +58,15 @@ func (r *Reprovider) Run(ctx context.Context, interval time.Duration) {
 			case <-ctx.Done():
 				return
 			case <-r.triggerProvide:
+				r.log.Debug("reprovide triggered")
 			case <-time.After(reprovideSleep):
+				r.log.Debug("reprovide sleep expired")
+			}
+
+			if !r.provider.Ready() {
+				r.log.Debug("provider not ready")
+				reprovideSleep = time.Minute
+				continue
 			}
 
 			for {
@@ -106,7 +119,7 @@ func (r *Reprovider) Run(ctx context.Context, interval time.Duration) {
 }
 
 // NewReprovider creates a new reprovider.
-func NewReprovider(provider provider.ProvideMany, store ReprovideStore, log *zap.Logger) *Reprovider {
+func NewReprovider(provider Provider, store ReprovideStore, log *zap.Logger) *Reprovider {
 	return &Reprovider{
 		provider:       provider,
 		store:          store,
