@@ -105,7 +105,7 @@ func (s *Store) SetLastAnnouncement(cids []cid.Cid, t time.Time) error {
 // interval to determine if the CID should be announced.
 func (s *Store) ProvideCIDs(limit int) (cids []ipfs.PinnedCID, err error) {
 	err = s.transaction(func(tx *txn) error {
-		const query = `SELECT b.cid
+		const query = `SELECT b.cid, pb.last_announcement
 FROM pinned_blocks pb
 INNER JOIN blocks b ON (b.id=pb.block_id)
 ORDER BY pb.last_announcement ASC
