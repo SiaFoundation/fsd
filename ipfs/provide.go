@@ -57,7 +57,7 @@ func (r *Reprovider) Run(ctx context.Context, interval time.Duration) {
 			}
 
 			for {
-				cids, err := r.store.ProvideCIDs(256)
+				cids, err := r.store.ProvideCIDs(1000)
 				if err != nil {
 					r.log.Error("failed to fetch CIDs to provide", zap.Error(err))
 					break
@@ -98,6 +98,8 @@ func (r *Reprovider) Run(ctx context.Context, interval time.Duration) {
 				}
 
 				r.log.Debug("announced CIDs", zap.Int("count", len(announced)), zap.Stringers("cids", announced))
+				// sleep a bit to rate limit. A little under 5 minutes per million
+				time.Sleep(250 * time.Millisecond)
 			}
 		}
 	})
