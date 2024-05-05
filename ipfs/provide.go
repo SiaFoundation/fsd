@@ -18,8 +18,9 @@ type (
 		LastAnnouncement time.Time `json:"lastAnnouncement"`
 	}
 
+	// A Provider provides CIDs to the IPFS network.
 	Provider interface {
-		Ready() bool
+		provider.Ready
 		provider.ProvideMany
 	}
 
