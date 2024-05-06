@@ -55,6 +55,7 @@ func (r *Reprovider) Run(ctx context.Context, interval time.Duration) {
 	once.Do(func() {
 		var reprovideSleep time.Duration
 		for {
+			r.log.Debug("sleeping until next reprovide time", zap.Duration("duration", reprovideSleep))
 			select {
 			case <-ctx.Done():
 				return
@@ -94,10 +95,13 @@ func (r *Reprovider) Run(ctx context.Context, interval time.Duration) {
 				announced := make([]cid.Cid, 0, len(cids))
 				keys := make([]multihash.Multihash, 0, len(cids))
 				for _, c := range cids {
-					if time.Since(c.LastAnnouncement) > interval {
-						keys = append(keys, c.CID.Hash())
-						announced = append(announced, c.CID)
+					if time.Since(c.LastAnnouncement) < interval {
+						reprovideSleep = time.Until(c.LastAnnouncement.Add(interval))
+						break
 					}
+
+					keys = append(keys, c.CID.Hash())
+					announced = append(announced, c.CID)
 				}
 
 				ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
