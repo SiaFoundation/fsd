@@ -263,5 +263,6 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, rs
 		bitswap:      bitswap,
 		blockService: blockServ,
 		dagService:   dagService,
+		reprovider:   rp,
 	}, nil
 }

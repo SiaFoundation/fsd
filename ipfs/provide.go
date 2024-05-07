@@ -116,8 +116,7 @@ func (r *Reprovider) Run(ctx context.Context, interval time.Duration) {
 				}
 
 				r.log.Debug("announced CIDs", zap.Int("count", len(announced)), zap.Stringers("cids", announced))
-				// sleep a bit to rate limit. A little under 5 minutes per million
-				time.Sleep(250 * time.Millisecond)
+				time.Sleep(100 * time.Millisecond)
 			}
 		}
 	})
