@@ -89,11 +89,16 @@ func (s *Store) Pin(b renterd.PinnedBlock) error {
 // SetLastAnnouncement updates the last announcement time of a block.
 func (s *Store) SetLastAnnouncement(cids []cid.Cid, t time.Time) error {
 	return s.transaction(func(tx *txn) error {
+		stmt, err := tx.Prepare(`UPDATE pinned_blocks SET last_announcement=$1 WHERE block_id IN (SELECT id FROM blocks WHERE cid=$2)`)
+		if err != nil {
+			return fmt.Errorf("failed to prepare update statement: %w", err)
+		}
+		defer stmt.Close()
+
 		for _, c := range cids {
 			c = normalizeCid(c)
-			_, err := tx.Exec(`UPDATE pinned_blocks SET last_announcement=$1 WHERE block_id IN (SELECT id FROM blocks WHERE cid=$2)`, dbEncode(t), dbEncode(c))
-			if err != nil {
-				return fmt.Errorf("failed to update last announcement: %w", err)
+			if _, err := stmt.Exec(dbEncode(t), dbEncode(c)); err != nil {
+				return fmt.Errorf("failed to update last announcement %q: %w", c, err)
 			}
 		}
 		return nil

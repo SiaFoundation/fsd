@@ -72,7 +72,8 @@ func (r *Reprovider) Run(ctx context.Context, interval time.Duration) {
 			}
 
 			for {
-				cids, err := r.store.ProvideCIDs(1000)
+				start := time.Now()
+				cids, err := r.store.ProvideCIDs(5000)
 				if err != nil {
 					r.log.Error("failed to fetch CIDs to provide", zap.Error(err))
 					break
@@ -80,7 +81,7 @@ func (r *Reprovider) Run(ctx context.Context, interval time.Duration) {
 
 				if len(cids) == 0 {
 					r.log.Debug("no CIDs to provide")
-					reprovideSleep = 15 * time.Minute // set a minimum sleep time
+					reprovideSleep = 15 * time.Minute // set a minimum sleep time even
 					break
 				}
 
@@ -115,8 +116,7 @@ func (r *Reprovider) Run(ctx context.Context, interval time.Duration) {
 					break
 				}
 
-				r.log.Debug("announced CIDs", zap.Int("count", len(announced)), zap.Stringers("cids", announced))
-				time.Sleep(100 * time.Millisecond)
+				r.log.Debug("announced CIDs", zap.Int("count", len(announced)), zap.Duration("elapsed", time.Since(start)))
 			}
 		}
 	})
