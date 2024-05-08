@@ -215,14 +215,18 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, rs
 		return nil, fmt.Errorf("failed to create libp2p host: %w", err)
 	}
 
-	dhtOpts := []dht.Option{
-		dht.Mode(dht.ModeServer),
-		dht.BootstrapPeers(bootstrapPeers...),
-		dht.BucketSize(20),
-		dht.Concurrency(30),
-		dht.Datastore(ds),
+	fullRTOpts := []fullrt.Option{
+		fullrt.DHTOption([]dht.Option{
+			dht.Mode(dht.ModeServer),
+			dht.BootstrapPeers(bootstrapPeers...),
+			dht.BucketSize(40),
+			dht.Concurrency(60),
+			dht.Datastore(ds),
+		}...),
+		fullrt.WithBulkSendParallelism(256),
 	}
-	frt, err := fullrt.NewFullRT(host, dht.DefaultPrefix, fullrt.DHTOption(dhtOpts...))
+
+	frt, err := fullrt.NewFullRT(host, dht.DefaultPrefix, fullRTOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fullrt: %w", err)
 	}
