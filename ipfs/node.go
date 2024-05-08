@@ -220,10 +220,10 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, rs
 			dht.Mode(dht.ModeServer),
 			dht.BootstrapPeers(bootstrapPeers...),
 			dht.BucketSize(20), // this cannot be changed
-			dht.Concurrency(60),
+			dht.Concurrency(40),
 			dht.Datastore(ds),
 		}...),
-		fullrt.WithBulkSendParallelism(256),
+		fullrt.WithBulkSendParallelism(100),
 	}
 
 	frt, err := fullrt.NewFullRT(host, dht.DefaultPrefix, fullRTOpts...)
