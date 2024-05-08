@@ -80,7 +80,7 @@ func (r *Reprovider) Run(ctx context.Context, interval time.Duration) {
 			for {
 				start := time.Now()
 
-				cids, err := r.store.ProvideCIDs(1000)
+				cids, err := r.store.ProvideCIDs(5000)
 				if err != nil {
 					reprovideSleep = time.Minute
 					r.log.Error("failed to fetch CIDs to provide", zap.Error(err))
