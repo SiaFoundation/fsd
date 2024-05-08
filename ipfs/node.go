@@ -219,7 +219,7 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, rs
 		fullrt.DHTOption([]dht.Option{
 			dht.Mode(dht.ModeServer),
 			dht.BootstrapPeers(bootstrapPeers...),
-			dht.BucketSize(40),
+			dht.BucketSize(20), // this cannot be changed
 			dht.Concurrency(60),
 			dht.Datastore(ds),
 		}...),
