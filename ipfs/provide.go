@@ -72,7 +72,7 @@ func (r *Reprovider) Run(ctx context.Context, interval time.Duration) {
 			}
 
 			doProvide := func(ctx context.Context, keys []multihash.Multihash) error {
-				ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+				ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 				defer cancel()
 				return r.provider.ProvideMany(ctx, keys)
 			}

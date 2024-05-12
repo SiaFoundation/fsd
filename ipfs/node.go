@@ -220,10 +220,9 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, rs
 			dht.Mode(dht.ModeServer),
 			dht.BootstrapPeers(bootstrapPeers...),
 			dht.BucketSize(20), // this cannot be changed
-			dht.Concurrency(40),
+			dht.Concurrency(30),
 			dht.Datastore(ds),
 		}...),
-		fullrt.WithBulkSendParallelism(100),
 	}
 
 	frt, err := fullrt.NewFullRT(host, dht.DefaultPrefix, fullRTOpts...)
@@ -232,9 +231,9 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, rs
 	}
 
 	bitswapOpts := []bitswap.Option{
-		bitswap.EngineBlockstoreWorkerCount(600),
+		bitswap.EngineBlockstoreWorkerCount(2500),
 		bitswap.TaskWorkerCount(600),
-		bitswap.MaxOutstandingBytesPerPeer(int(5 << 20)),
+		bitswap.MaxOutstandingBytesPerPeer(int(1 << 20)),
 		bitswap.ProvideEnabled(true),
 	}
 
