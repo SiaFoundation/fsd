@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"flag"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -29,6 +30,8 @@ import (
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/yaml.v3"
 	"lukechampine.com/frand"
+
+	_ "net/http/pprof"
 )
 
 var (
@@ -81,6 +84,10 @@ func mustLoadConfig(dir string, log *zap.Logger) {
 }
 
 func main() {
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
+
 	// configure console logging note: this is configured before anything else
 	// to have consistent logging. File logging will be added after the cli
 	// flags and config is parsed
