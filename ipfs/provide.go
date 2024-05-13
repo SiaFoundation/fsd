@@ -106,7 +106,7 @@ func (r *Reprovider) Run(ctx context.Context, interval, timeout time.Duration, b
 				// include a slight buffer for CIDs that are about to expire
 				// so they will be provided as one batch
 				buffer := interval / 10
-				minAnnouncement := time.Now().Add(-interval).Add(buffer)
+				minAnnouncement := time.Now().Add(-(interval - buffer))
 				for _, c := range cids {
 					// only provide CIDs that have not been provided within the
 					// last interval
