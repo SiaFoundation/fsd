@@ -54,6 +54,7 @@ var (
 			Provider: config.IPFSProvider{
 				BatchSize: 5000,
 				Interval:  18 * time.Hour,
+				Timeout:   30 * time.Minute,
 			},
 		},
 		API: config.API{

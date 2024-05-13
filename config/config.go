@@ -63,6 +63,7 @@ type (
 	IPFSProvider struct {
 		BatchSize int           `yaml:"batchSize"`
 		Interval  time.Duration `yaml:"interval"`
+		Timeout   time.Duration `yaml:"timeout"`
 	}
 
 	// API contains the listen address of the API server

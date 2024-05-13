@@ -50,7 +50,7 @@ func (r *Reprovider) Trigger() {
 
 // Run starts the reprovider loop, which periodically announces CIDs that
 // have not been announced in the last interval.
-func (r *Reprovider) Run(ctx context.Context, interval time.Duration, batchSize int) {
+func (r *Reprovider) Run(ctx context.Context, interval, timeout time.Duration, batchSize int) {
 	var once sync.Once
 	once.Do(func() {
 		var reprovideSleep time.Duration
@@ -72,7 +72,7 @@ func (r *Reprovider) Run(ctx context.Context, interval time.Duration, batchSize 
 			}
 
 			doProvide := func(ctx context.Context, keys []multihash.Multihash) error {
-				ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+				ctx, cancel := context.WithTimeout(ctx, timeout)
 				defer cancel()
 				return r.provider.ProvideMany(ctx, keys)
 			}
