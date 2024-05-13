@@ -103,7 +103,13 @@ func (r *Reprovider) Run(ctx context.Context, interval, timeout time.Duration, b
 
 				announced := make([]cid.Cid, 0, len(cids))
 				keys := make([]multihash.Multihash, 0, len(cids))
+				minAnnouncement := time.Now().Add(-interval)
 				for _, c := range cids {
+					// only provide CIDs that have not been provided within the
+					// last interval
+					if c.LastAnnouncement.After(minAnnouncement) {
+						break
+					}
 					keys = append(keys, c.CID.Hash())
 					announced = append(announced, c.CID)
 				}
