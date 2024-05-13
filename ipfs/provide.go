@@ -54,6 +54,15 @@ func (r *Reprovider) Run(ctx context.Context, interval, timeout time.Duration, b
 	var once sync.Once
 	once.Do(func() {
 		var reprovideSleep time.Duration
+
+		for {
+			if r.provider.Ready() {
+				break
+			}
+			r.log.Debug("provider not ready")
+			time.Sleep(30 * time.Second)
+		}
+
 		for {
 			r.log.Debug("sleeping until next reprovide time", zap.Duration("duration", reprovideSleep))
 			select {
@@ -63,12 +72,6 @@ func (r *Reprovider) Run(ctx context.Context, interval, timeout time.Duration, b
 				r.log.Debug("reprovide triggered")
 			case <-time.After(reprovideSleep):
 				r.log.Debug("reprovide sleep expired")
-			}
-
-			if !r.provider.Ready() {
-				r.log.Debug("provider not ready")
-				reprovideSleep = time.Minute
-				continue
 			}
 
 			doProvide := func(ctx context.Context, keys []multihash.Multihash) error {
