@@ -1,6 +1,8 @@
 package config
 
 import (
+	"time"
+
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -49,11 +51,18 @@ type (
 
 	// IPFS contains the configuration for the IPFS node
 	IPFS struct {
-		PrivateKey        string      `yaml:"privateKey"`
-		ListenAddresses   []string    `yaml:"listenAddresses"`
-		AnnounceAddresses []string    `yaml:"announceAddresses"`
-		Peers             []IPFSPeer  `yaml:"peers"`
-		Gateway           HTTPGateway `yaml:"gateway"`
+		PrivateKey        string       `yaml:"privateKey"`
+		ListenAddresses   []string     `yaml:"listenAddresses"`
+		AnnounceAddresses []string     `yaml:"announceAddresses"`
+		Peers             []IPFSPeer   `yaml:"peers"`
+		Gateway           HTTPGateway  `yaml:"gateway"`
+		Provider          IPFSProvider `yaml:"provider"`
+	}
+
+	// IPFSProvider contains the configuration for the IPFS provider
+	IPFSProvider struct {
+		BatchSize int           `yaml:"batchSize"`
+		Interval  time.Duration `yaml:"interval"`
 	}
 
 	// API contains the listen address of the API server

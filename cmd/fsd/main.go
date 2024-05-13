@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	levelds "github.com/ipfs/go-ds-leveldb"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -49,6 +50,10 @@ var (
 		IPFS: config.IPFS{
 			Gateway: config.HTTPGateway{
 				ListenAddress: ":8080",
+			},
+			Provider: config.IPFSProvider{
+				BatchSize: 5000,
+				Interval:  18 * time.Hour,
 			},
 		},
 		API: config.API{

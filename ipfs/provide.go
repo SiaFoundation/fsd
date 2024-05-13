@@ -50,7 +50,7 @@ func (r *Reprovider) Trigger() {
 
 // Run starts the reprovider loop, which periodically announces CIDs that
 // have not been announced in the last interval.
-func (r *Reprovider) Run(ctx context.Context, interval time.Duration) {
+func (r *Reprovider) Run(ctx context.Context, interval time.Duration, batchSize int) {
 	var once sync.Once
 	once.Do(func() {
 		var reprovideSleep time.Duration
@@ -80,7 +80,7 @@ func (r *Reprovider) Run(ctx context.Context, interval time.Duration) {
 			for {
 				start := time.Now()
 
-				cids, err := r.store.ProvideCIDs(5000)
+				cids, err := r.store.ProvideCIDs(batchSize)
 				if err != nil {
 					reprovideSleep = time.Minute
 					r.log.Error("failed to fetch CIDs to provide", zap.Error(err))

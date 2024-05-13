@@ -257,7 +257,7 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, rs
 	}
 
 	rp := NewReprovider(frt, rs, log.Named("reprovider"))
-	go rp.Run(ctx, 16*time.Hour)
+	go rp.Run(ctx, cfg.Provider.Interval, cfg.Provider.BatchSize)
 
 	return &Node{
 		log:          log,
