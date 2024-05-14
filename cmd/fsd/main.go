@@ -44,7 +44,7 @@ var (
 			Bucket:        "ipfs",
 		},
 		BlockStore: config.BlockStore{
-			CacheSize:     10000,
+			CacheSize:     1024, // 1024 blocks = max of 4GiB
 			MaxConcurrent: 1000,
 		},
 		IPFS: config.IPFS{
