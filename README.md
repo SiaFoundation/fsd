@@ -71,19 +71,19 @@ docker run -d \
 ```yml
 services:
   renterd:
-	image: ghcr.io/siafoundation/renterd:latest
-	ports:
-	  - 127.0.0.1:9980:9980/tcp
-	  - 9981:9981/tcp
-	volumes:
-	  - renterd-data:/data
-	restart: unless-stopped
+    image: ghcr.io/siafoundation/renterd:latest
+    ports:
+      - 127.0.0.1:9980:9980/tcp
+      - 9981:9981/tcp
+    volumes:
+      - renterd-data:/data
+    restart: unless-stopped
   fsd:
     image: ghcr.io/siafoundation/fsd:latest
-	depends_on:
-	  - renterd
+    depends_on:
+      - renterd
     ports:
-	  - 8080:8080/tcp
+      - 8080:8080/tcp
       - 127.0.0.1:8081:8081/tcp
     volumes:
       - fsd-data:/data
