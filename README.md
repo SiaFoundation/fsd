@@ -57,17 +57,6 @@ CGO_ENABLED=1 go build -o bin/ -tags='netgo timetzdata' -trimpath -a -ldflags '-
 
 To setup `fsd`: copy the example `fsd.yml` to the directory you want to store `fsd` metadata, modify it to your needs, then create the container.
 
-```bash
-docker run -d \
-  --name fsd \
-  -p 8080:8080 \
-  -p 9981-9983:9981-9983 \
-  -v ./data:/data \
-  -v ./storage:/storage \
-    ghcr.io/siafoundation/hostd:latest
-```
-
-### Docker Compose
 ```yml
 services:
   renterd:
