@@ -4,16 +4,92 @@
 [![GoDoc](https://godoc.org/go.sia.tech/fsd?status.svg)](https://godoc.org/go.sia.tech/fsd)
 <a href="https://ipfs.tech"><img src="https://img.shields.io/badge/IPFS-Compatible-blue.svg" alt="IPFS Implementation"></a>
 
-> **fsd** _(interplanetary **f**ile **s**ystem **d**aemon)_ is an IPFS daemon that stores blocks on Sia via `renterd`.
+fsd is an IPFS node created by the Sia Foundation. It has optimizations specifically tailored for accessing data via the Sia network and is designed for large scale storage and retrieval. It is designed to be used with a backing `renter` node that is responsible for storing and managing data instead of storing data on a centralized service or on the local filesystem.
 
-## usage
+*This is currently a technology preview*
 
-```sh
-# upload a file
-curl -X POST -H 'Content-Type: application/octet-stream' --data-binary @ape0.png http://localhost:8001/api/unixfs/upload
-"QmRRPWG96cmgTn2qSzjwr2qvfNEuhunv6FNeMFGa9bx6mQ"
-curl http://localhost:8080/ipfs/QmRRPWG96cmgTn2qSzjwr2qvfNEuhunv6FNeMFGa9bx6mQ
+### TODO
+- [] Add IPNS support
+
+## Configuration
+
+`fsd` is primarily configured via a YAML file. The configuration file should be placed in the working directory and named `fsd.yml`. 
+
+### Example
+
+```yml
+api: # The API is used to pin and unpin CIDs and access metrics about the node
+  address: :8081
+  password: sia is cool
+renterd: # The backing store for fsd. This configures the renterd node that stores the block data.
+  address: http://localhost:9980/api/worker
+  password: sia is extra cool
+  bucket: ipfs
+blockstore:
+  maxConcurrent: 100 # the maximum number of concurrent fetches the blockstore will allow
+  cacheSize: 1000000 # the maximum number of blocks that will be cached in memory at any given time
+ipfs: # The IPFS node configuration.
+  privateKey: # The private key for the IPFS node. If not set, a new key will be generated on startup and must be manually saved to the configuration file.
+  gateway: # configure the HTTP gateway
+	listenAddress: :8080
+	redirectPathStyle: true
+	fetch:
+		enabled: false # enable or disable fetching blocks from the IPFS network If false, will only serve pinned blocks.
+		allowlist: [] # contains the CIDs that are allowed to be fetched remotely by the gateway. If empty, all CIDs are allowed.
+  listenAddresses:
+    - /ip4/0.0.0.0/tcp/4001 # the listen address for bitswap. Since no announce addresses are configured, no bits will be swapped
+  provider:
+	batchSize: 50000 # configures the reprovide batch size 
+	interval: 18h # the interval at which the node will re-provide blocks to the IPFS network
+
+
+## Build
+
+`fsd` supports SQLite for its persistence. A gcc toolchain is required to build `fsd`.
+
+```bash
+CGO_ENABLED=1 go build -o bin/ -tags='netgo timetzdata' -trimpath -a -ldflags '-s -w'  ./cmd/fsd
 ```
 
-## todo
-- [ ] IPNS support
+## Docker
+
+`fsd` releases are available as Docker images hosted on `ghcr.io`. The image can be pulled from `ghcr.io/siafoundation/fsd`.
+
+To setup `fsd`: copy the example `fsd.yml` to the directory you want to store `fsd` metadata, modify it to your needs, then create the container.
+
+```bash
+docker run -d \
+  --name fsd \
+  -p 8080:8080 \
+  -p 9981-9983:9981-9983 \
+  -v ./data:/data \
+  -v ./storage:/storage \
+    ghcr.io/siafoundation/hostd:latest
+```
+
+### Docker Compose
+```yml
+services:
+  renterd:
+	image: ghcr.io/siafoundation/renterd:latest
+	ports:
+	  - 127.0.0.1:9980:9980/tcp
+	  - 9981:9981/tcp
+	volumes:
+	  - renterd-data:/data
+	restart: unless-stopped
+  fsd:
+    image: ghcr.io/siafoundation/fsd:latest
+	depends_on:
+	  - renterd
+    ports:
+	  - 8080:8080/tcp
+      - 127.0.0.1:8081:8081/tcp
+    volumes:
+      - fsd-data:/data
+    restart: unless-stopped
+
+volumes:
+  renterd-data:
+  fsd-data:
+```
