@@ -31,17 +31,17 @@ blockstore:
 ipfs: # The IPFS node configuration.
   privateKey: # The private key for the IPFS node. If not set, a new key will be generated on startup and must be manually saved to the configuration file.
   gateway: # configure the HTTP gateway
-	listenAddress: :8080
-	redirectPathStyle: true
-	fetch:
-		enabled: false # enable or disable fetching blocks from the IPFS network If false, will only serve pinned blocks.
-		allowlist: [] # contains the CIDs that are allowed to be fetched remotely by the gateway. If empty, all CIDs are allowed.
+  listenAddress: :8080
+  redirectPathStyle: true
+  fetch:
+    enabled: false # enable or disable fetching blocks from the IPFS network If false, will only serve pinned blocks.
+    allowlist: [] # contains the CIDs that are allowed to be fetched remotely by the gateway. If empty, all CIDs are allowed.
   listenAddresses:
     - /ip4/0.0.0.0/tcp/4001 # the listen address for bitswap. Since no announce addresses are configured, no bits will be swapped
   provider:
-	batchSize: 50000 # configures the reprovide batch size 
-	interval: 18h # the interval at which the node will re-provide blocks to the IPFS network
-
+  batchSize: 50000 # configures the reprovide batch size 
+  interval: 18h # the interval at which the node will re-provide blocks to the IPFS network
+```
 
 ## Build
 
