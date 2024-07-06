@@ -9,7 +9,7 @@ fsd is an IPFS node created by the Sia Foundation. It has optimizations specific
 *This is currently a technology preview*
 
 ### TODO
-- [] Add IPNS support
+- Add IPNS support
 
 ## Configuration
 

@@ -153,7 +153,7 @@ func (n *Node) PinCAR(ctx context.Context, r io.Reader) error {
 	}
 
 	for block, err := cr.Next(); err != io.EOF; block, err = cr.Next() {
-		if n.blockService.AddBlock(ctx, block); err != nil {
+		if err := n.blockService.AddBlock(ctx, block); err != nil {
 			return fmt.Errorf("failed to add block %q: %w", block.Cid(), err)
 		}
 		log.Debug("added block", zap.Stringer("cid", block.Cid()))
