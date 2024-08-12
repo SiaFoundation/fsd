@@ -13,7 +13,6 @@ import (
 	fsio "github.com/ipfs/boxo/ipld/unixfs/io"
 	"github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
-	"go.uber.org/zap"
 )
 
 type (
@@ -100,47 +99,32 @@ func (n *Node) ServeUnixFile(ctx context.Context, c cid.Cid, path []string) (io.
 		return nil, "", fmt.Errorf("failed to get root node: %w", err)
 	}
 
-	var indexFileCid *cid.Cid
-	for _, link := range rootNode.Links() {
-		if link.Name == "index.html" {
-			indexFileCid = &link.Cid
-			break
-		}
-	}
-
-	serveIndex := func() (io.ReadSeekCloser, string, error) {
-		node, err := dagSess.Get(ctx, *indexFileCid)
+	serveIndex := func(node format.Node) (io.ReadSeekCloser, string, error) {
+		n.log.Debug("serving directory index.html")
+		dir, err := fsio.NewDirectoryFromNode(n.dagService, node)
 		if err != nil {
-			return nil, "", fmt.Errorf("failed to get index file: %w", err)
+			return nil, "", fmt.Errorf("failed to create directory from node: %w", err)
 		}
-		dr, err := fsio.NewDagReader(ctx, node, dagSess)
+		index, err := dir.Find(ctx, "index.html")
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to find index.html: %w", err)
+		}
+		dr, err := fsio.NewDagReader(ctx, index, dagSess)
 		return dr, "index.html", err
 	}
 
 	child, err := traverseUnixFSNode(ctx, n.dagService, rootNode, path)
 	if err != nil && strings.Contains(err.Error(), "failed to resolve path") {
-		if indexFileCid != nil {
-			return serveIndex()
-		}
+		return serveIndex(rootNode)
 	} else if err != nil {
 		return nil, "", fmt.Errorf("failed to traverse node: %w", err)
 	}
 
 	// if the resolved node is a directory and the index file exists
 	// serve it.
-	dir, err := fsio.NewDirectoryFromNode(n.dagService, child)
-	if err == nil {
-		n.log.Debug("serving index.html")
-		child, err := dir.Find(ctx, "index.html")
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to find index.html: %w", err)
-		}
-		dr, err := fsio.NewDagReader(ctx, child, dagSess)
-		return dr, "index.html", err
-	} else {
-		n.log.Debug("failed to create directory from node", zap.Error(err))
+	if _, err = fsio.NewDirectoryFromNode(n.dagService, child); err == nil {
+		return serveIndex(child)
 	}
-
 	dr, err := fsio.NewDagReader(ctx, child, dagSess)
 	return dr, path[len(path)-1], err
 }
