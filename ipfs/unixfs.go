@@ -8,12 +8,12 @@ import (
 
 	chunker "github.com/ipfs/boxo/chunker"
 	"github.com/ipfs/boxo/ipld/merkledag"
-	"github.com/ipfs/boxo/ipld/unixfs"
 	"github.com/ipfs/boxo/ipld/unixfs/importer/balanced"
 	ihelpers "github.com/ipfs/boxo/ipld/unixfs/importer/helpers"
 	fsio "github.com/ipfs/boxo/ipld/unixfs/io"
 	"github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
+	"go.uber.org/zap"
 )
 
 type (
@@ -55,26 +55,21 @@ func UnixFSWithBlockSize(b int64) UnixFSOption {
 	}
 }
 
-func traverseNode(ctx context.Context, ng format.NodeGetter, parent format.Node, path []string) (format.Node, error) {
+func traverseUnixFSNode(ctx context.Context, ng format.DAGService, parent format.Node, path []string) (format.Node, error) {
 	if len(path) == 0 {
 		return parent, nil
 	}
 
-	childLink, rem, err := parent.Resolve(path)
+	dir, err := fsio.NewDirectoryFromNode(ng, parent)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve path %q: %w", strings.Join(path, "/"), err)
+		return nil, fmt.Errorf("failed to create directory from node: %w", err)
 	}
 
-	switch v := childLink.(type) {
-	case *format.Link:
-		childNode, err := ng.Get(ctx, v.Cid)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get child node %q: %w", v.Cid, err)
-		}
-		return traverseNode(ctx, ng, childNode, rem)
-	default:
-		return nil, fmt.Errorf("expected link node, got %T", childLink)
+	child, err := dir.Find(ctx, path[0])
+	if err != nil {
+		return nil, fmt.Errorf("failed to find child %q: %w", path[0], err)
 	}
+	return traverseUnixFSNode(ctx, ng, child, path[1:])
 }
 
 // DownloadUnixFile downloads a UnixFS CID from IPFS
@@ -86,7 +81,7 @@ func (n *Node) DownloadUnixFile(ctx context.Context, c cid.Cid, path []string) (
 		return nil, fmt.Errorf("failed to get root node: %w", err)
 	}
 
-	node, err := traverseNode(ctx, n.dagService, rootNode, path)
+	node, err := traverseUnixFSNode(ctx, n.dagService, rootNode, path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root node: %w", err)
 	}
@@ -122,7 +117,7 @@ func (n *Node) ServeUnixFile(ctx context.Context, c cid.Cid, path []string) (io.
 		return dr, "index.html", err
 	}
 
-	node, err := traverseNode(ctx, n.dagService, rootNode, path)
+	child, err := traverseUnixFSNode(ctx, n.dagService, rootNode, path)
 	if err != nil && strings.Contains(err.Error(), "failed to resolve path") {
 		if indexFileCid != nil {
 			return serveIndex()
@@ -133,20 +128,21 @@ func (n *Node) ServeUnixFile(ctx context.Context, c cid.Cid, path []string) (io.
 
 	// if the resolved node is a directory and the index file exists
 	// serve it.
-	fsnode, err := unixfs.ExtractFSNode(node)
+	dir, err := fsio.NewDirectoryFromNode(n.dagService, child)
 	if err == nil {
-		if fsnode.IsDir() && indexFileCid != nil {
-			return serveIndex()
+		n.log.Debug("serving index.html")
+		child, err := dir.Find(ctx, "index.html")
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to find index.html: %w", err)
 		}
+		dr, err := fsio.NewDagReader(ctx, child, dagSess)
+		return dr, "index.html", err
+	} else {
+		n.log.Debug("failed to create directory from node", zap.Error(err))
 	}
 
-	filename := c.String()
-	if len(path) > 0 {
-		filename = path[len(path)-1]
-	}
-
-	dr, err := fsio.NewDagReader(ctx, node, dagSess)
-	return dr, filename, err
+	dr, err := fsio.NewDagReader(ctx, child, dagSess)
+	return dr, path[len(path)-1], err
 }
 
 // UploadUnixFile uploads a UnixFS file to IPFS

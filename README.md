@@ -22,8 +22,10 @@ api: # The API is used to pin and unpin CIDs and access metrics about the node
   address: :8081
   password: sia is cool
 renterd: # The backing store for fsd. This configures the renterd node that stores the block data.
-  address: http://localhost:9980/api/worker
-  password: sia is extra cool
+  workerAddress: http://localhost:9980/api/worker
+  workerPassword: sia is extra cool
+  busAddress: http://localhost:9980/api/bus
+  busPassword: sia is extra cool
   bucket: ipfs
 blockstore:
   maxConcurrent: 100 # the maximum number of concurrent fetches the blockstore will allow
@@ -31,16 +33,18 @@ blockstore:
 ipfs: # The IPFS node configuration.
   privateKey: # The private key for the IPFS node. If not set, a new key will be generated on startup and must be manually saved to the configuration file.
   gateway: # configure the HTTP gateway
-  listenAddress: :8080
-  redirectPathStyle: true
+    listenAddress: :8080
+    redirectPathStyle: true
   fetch:
-    enabled: false # enable or disable fetching blocks from the IPFS network If false, will only serve pinned blocks.
+    enabled: false # enable or disable fetching blocks from the IPFS network. If false, will only serve pinned blocks.
     allowlist: [] # contains the CIDs that are allowed to be fetched remotely by the gateway. If empty, all CIDs are allowed.
   listenAddresses:
     - /ip4/0.0.0.0/tcp/4001 # the listen address for bitswap. Since no announce addresses are configured, no bits will be swapped
+  announceAddresses:
+    - /ipv4/127.0.0.1/tcp/4001 # the announce address for bitswap. This is the address that will be shared with other nodes on the network.
   provider:
-  batchSize: 50000 # configures the reprovide batch size 
-  interval: 18h # the interval at which the node will re-provide blocks to the IPFS network
+    batchSize: 50000 # configures the reprovide batch size 
+    interval: 18h # the interval at which the node will re-provide blocks to the IPFS network
 ```
 
 ## Build
