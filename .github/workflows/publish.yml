@@ -1,56 +1,25 @@
 name: Publish
 
-# Controls when the action will run. 
+# Controls when the action will run.
 on:
-  # Triggers the workflow on new SemVer tags
   push:
     branches:
-      - main
-    tags: 
+      - master
+    tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-**'
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
-      - name: Test
-        uses: ./.github/actions/test
-  docker:
-    runs-on: ubuntu-latest
-    needs: [ test ]
-    permissions:
-      packages: write
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/metadata-action@v5
-        name: generate tags
-        id: meta
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=ref,event=branch
-            type=sha,prefix=
-            type=semver,pattern={{version}}
-      - uses: docker/build-push-action@v4
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+  publish:
+    uses: SiaFoundation/workflows/.github/workflows/go-publish.yml@master
+    secrets: inherit
+    with:
+      linux-build-args: -tags=timetzdata -trimpath -a -ldflags '-s -w -linkmode external -extldflags "-static"'
+      windows-build-args: -tags=timetzdata -trimpath -a -ldflags '-s -w -linkmode external -extldflags "-static"'
+      macos-build-args: -tags=timetzdata -trimpath -a -ldflags '-s -w'
+      cgo-enabled: 1
+      project: fsd
