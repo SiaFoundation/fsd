@@ -10,7 +10,7 @@ require (
 	github.com/ipfs/go-datastore v0.6.0
 	github.com/ipfs/go-ds-leveldb v0.5.0
 	github.com/ipfs/go-ipld-format v0.6.0
-	github.com/ipld/go-car/v2 v2.14.0
+	github.com/ipld/go-car/v2 v2.14.1
 	github.com/libp2p/go-libp2p v0.36.3
 	github.com/libp2p/go-libp2p-kad-dht v0.26.1
 	github.com/mattn/go-sqlite3 v1.14.23
