@@ -234,11 +234,10 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, rs
 		bitswap.EngineBlockstoreWorkerCount(2500),
 		bitswap.TaskWorkerCount(600),
 		bitswap.MaxOutstandingBytesPerPeer(int(1 << 20)),
-		bitswap.ProvideEnabled(true),
 	}
 
-	bitswapNet := bnetwork.NewFromIpfsHost(host, frt)
-	bitswap := bitswap.New(ctx, bitswapNet, bs, bitswapOpts...)
+	bitswapNet := bnetwork.NewFromIpfsHost(host)
+	bitswap := bitswap.New(ctx, bitswapNet, frt, bs, bitswapOpts...)
 
 	blockServ := blockservice.New(bs, bitswap)
 	dagService := merkledag.NewDAGService(blockServ)
