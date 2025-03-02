@@ -53,7 +53,7 @@ func (bs *BlockStore) DeleteBlock(ctx context.Context, c cid.Cid) error {
 	}
 
 	start := time.Now()
-	if err := bs.busClient.DeleteObject(ctx, bs.bucket, key, api.DeleteObjectOptions{}); err != nil {
+	if err := bs.busClient.DeleteObject(ctx, bs.bucket, key); err != nil {
 		log.Debug("failed to delete block", zap.Error(err))
 	}
 	log.Debug("deleted block", zap.Duration("elapsed", time.Since(start)))
@@ -109,8 +109,8 @@ func (bs *BlockStore) GetSize(ctx context.Context, c cid.Cid) (int, error) {
 		}
 		return 0, format.ErrNotFound{Cid: c}
 	}
-	log.Debug("got block size", zap.Int("size", int(stat.Object.Size)))
-	return int(stat.Object.Size), nil
+	log.Debug("got block size", zap.Int("size", int(stat.Object.TotalSize())))
+	return int(stat.Object.TotalSize()), nil
 }
 
 // Put puts a given block to the underlying datastore
