@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/ipfs/boxo/bitswap"
-	bnetwork "github.com/ipfs/boxo/bitswap/network"
+	"github.com/ipfs/boxo/bitswap/network/bsnet"
 	"github.com/ipfs/boxo/blockservice"
 	"github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/boxo/ipld/merkledag"
@@ -236,8 +236,8 @@ func NewNode(ctx context.Context, privateKey crypto.PrivKey, cfg config.IPFS, rs
 		bitswap.MaxOutstandingBytesPerPeer(int(1 << 20)),
 	}
 
-	bitswapNet := bnetwork.NewFromIpfsHost(host)
-	bitswap := bitswap.New(ctx, bitswapNet, frt, bs, bitswapOpts...)
+	bswapnet := bsnet.NewFromIpfsHost(host)
+	bitswap := bitswap.New(ctx, bswapnet, frt, bs, bitswapOpts...)
 
 	blockServ := blockservice.New(bs, bitswap)
 	dagService := merkledag.NewDAGService(blockServ)
