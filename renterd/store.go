@@ -13,9 +13,9 @@ import (
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
-	"go.sia.tech/renterd/api"
-	"go.sia.tech/renterd/bus"
-	"go.sia.tech/renterd/worker"
+	"go.sia.tech/renterd/v2/api"
+	"go.sia.tech/renterd/v2/bus"
+	"go.sia.tech/renterd/v2/worker"
 	"go.uber.org/zap"
 )
 
