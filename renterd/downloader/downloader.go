@@ -15,8 +15,8 @@ import (
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	mh "github.com/multiformats/go-multihash"
-	"go.sia.tech/renterd/api"
-	"go.sia.tech/renterd/worker"
+	"go.sia.tech/renterd/v2/api"
+	"go.sia.tech/renterd/v2/worker"
 	"go.uber.org/zap"
 )
 

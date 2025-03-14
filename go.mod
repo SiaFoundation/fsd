@@ -20,7 +20,7 @@ require (
 	github.com/multiformats/go-multicodec v0.9.0
 	github.com/multiformats/go-multihash v0.2.3
 	go.sia.tech/jape v0.12.1
-	go.sia.tech/renterd v1.1.2-0.20250310164423-49c892b00d1b
+	go.sia.tech/renterd/v2 v2.0.2-0.20250312081818-65ef6bdb87ec
 	go.uber.org/zap v1.27.0
 	gopkg.in/yaml.v3 v3.0.1
 	lukechampine.com/frand v1.5.1
