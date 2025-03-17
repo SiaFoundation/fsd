@@ -6,8 +6,8 @@ on:
     branches:
       - main
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
-      - 'v[0-9]+.[0-9]+.[0-9]+-**'
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-**"
 
 concurrency:
   group: ${{ github.workflow }}
@@ -23,3 +23,5 @@ jobs:
       macos-build-args: -tags=timetzdata -trimpath -a -ldflags '-s -w'
       cgo-enabled: 1
       project: fsd
+      project-desc: "fsd: An IPFS node using the Sia network"
+      version-tag: ${{ github.ref_name }}
