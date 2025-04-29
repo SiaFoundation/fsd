@@ -1,7 +1,8 @@
 module go.sia.tech/fsd
 
-go 1.23.1
-toolchain go1.24.1
+go 1.23.2
+
+toolchain go1.24.2
 
 require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7
@@ -19,7 +20,7 @@ require (
 	github.com/multiformats/go-multicodec v0.9.0
 	github.com/multiformats/go-multihash v0.2.3
 	go.sia.tech/jape v0.13.1
-	go.sia.tech/renterd/v2 v2.0.2-0.20250312081818-65ef6bdb87ec
+	go.sia.tech/renterd/v2 v2.0.2-0.20250429133416-0719be4614ed
 	go.uber.org/zap v1.27.0
 	gopkg.in/yaml.v3 v3.0.1
 	lukechampine.com/frand v1.5.1
@@ -27,7 +28,7 @@ require (
 
 require (
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b // indirect
-	github.com/aws/aws-sdk-go v1.55.6 // indirect
+	github.com/aws/aws-sdk-go v1.55.7 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -42,7 +43,7 @@ require (
 	github.com/filecoin-project/go-clock v0.1.0 // indirect
 	github.com/flynn/noise v1.1.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
-	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
+	github.com/gabriel-vasile/mimetype v1.4.9 // indirect
 	github.com/gammazero/chanqueue v1.1.0 // indirect
 	github.com/gammazero/deque v1.0.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
@@ -138,7 +139,7 @@ require (
 	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/quic-go/qpack v0.5.1 // indirect
-	github.com/quic-go/quic-go v0.50.1 // indirect
+	github.com/quic-go/quic-go v0.51.0 // indirect
 	github.com/quic-go/webtransport-go v0.8.1-0.20241018022711-4ac2c9250e66 // indirect
 	github.com/raulk/go-watchdog v1.3.0 // indirect
 	github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46 // indirect
@@ -155,8 +156,8 @@ require (
 	go.opentelemetry.io/otel v1.34.0 // indirect
 	go.opentelemetry.io/otel/metric v1.34.0 // indirect
 	go.opentelemetry.io/otel/trace v1.34.0 // indirect
-	go.sia.tech/core v0.10.3 // indirect
-	go.sia.tech/coreutils v0.12.1-0.20250306145921-362f2554d5ca // indirect
+	go.sia.tech/core v0.12.0 // indirect
+	go.sia.tech/coreutils v0.13.2 // indirect
 	go.sia.tech/gofakes3 v0.0.5 // indirect
 	go.sia.tech/mux v1.4.0 // indirect
 	go.uber.org/dig v1.18.0 // indirect
