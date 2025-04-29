@@ -3,6 +3,7 @@
 # fsd
 [![GoDoc](https://godoc.org/go.sia.tech/fsd?status.svg)](https://godoc.org/go.sia.tech/fsd)
 <a href="https://ipfs.tech"><img src="https://img.shields.io/badge/IPFS-Compatible-blue.svg" alt="IPFS Implementation"></a>
+[![License](https://img.shields.io/github/license/SiaFoundation/fsd)](https://github.com/SiaFoundation/fsd/blob/main/LICENSE)
 
 fsd is an IPFS node created by the Sia Foundation. It has optimizations specifically tailored for accessing data via the Sia network and is designed for large scale storage and retrieval. It is designed to be used with a backing `renter` node that is responsible for storing and managing data instead of storing data on a centralized service or on the local filesystem.
 
