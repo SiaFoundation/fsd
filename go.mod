@@ -1,8 +1,6 @@
 module go.sia.tech/fsd
 
-go 1.23.8
-
-toolchain go1.24.2
+go 1.24.2
 
 require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7
@@ -14,13 +12,13 @@ require (
 	github.com/ipfs/go-ipld-format v0.6.1
 	github.com/ipld/go-car/v2 v2.14.3
 	github.com/libp2p/go-libp2p v0.41.1
-	github.com/libp2p/go-libp2p-kad-dht v0.33.0
+	github.com/libp2p/go-libp2p-kad-dht v0.33.1
 	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/multiformats/go-multiaddr v0.15.0
 	github.com/multiformats/go-multicodec v0.9.0
 	github.com/multiformats/go-multihash v0.2.3
 	go.sia.tech/jape v0.14.0
-	go.sia.tech/renterd/v2 v2.1.0
+	go.sia.tech/renterd/v2 v2.2.0
 	go.uber.org/zap v1.27.0
 	gopkg.in/yaml.v3 v3.0.1
 	lukechampine.com/frand v1.5.1
@@ -136,7 +134,7 @@ require (
 	github.com/prometheus/common v0.63.0 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/quic-go/qpack v0.5.1 // indirect
-	github.com/quic-go/quic-go v0.51.0 // indirect
+	github.com/quic-go/quic-go v0.52.0 // indirect
 	github.com/quic-go/webtransport-go v0.8.1-0.20241018022711-4ac2c9250e66 // indirect
 	github.com/raulk/go-watchdog v1.3.0 // indirect
 	github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46 // indirect
@@ -153,8 +151,8 @@ require (
 	go.opentelemetry.io/otel v1.35.0 // indirect
 	go.opentelemetry.io/otel/metric v1.35.0 // indirect
 	go.opentelemetry.io/otel/trace v1.35.0 // indirect
-	go.sia.tech/core v0.12.0 // indirect
-	go.sia.tech/coreutils v0.13.2 // indirect
+	go.sia.tech/core v0.13.0 // indirect
+	go.sia.tech/coreutils v0.15.0 // indirect
 	go.sia.tech/gofakes3 v0.0.5 // indirect
 	go.sia.tech/mux v1.4.0 // indirect
 	go.uber.org/dig v1.18.0 // indirect
