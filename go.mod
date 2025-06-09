@@ -14,8 +14,8 @@ require (
 	github.com/libp2p/go-libp2p v0.41.1
 	github.com/libp2p/go-libp2p-kad-dht v0.33.1
 	github.com/mattn/go-sqlite3 v1.14.28
-	github.com/multiformats/go-multiaddr v0.15.0
-	github.com/multiformats/go-multicodec v0.9.0
+	github.com/multiformats/go-multiaddr v0.16.0
+	github.com/multiformats/go-multicodec v0.9.1
 	github.com/multiformats/go-multihash v0.2.3
 	go.sia.tech/jape v0.14.0
 	go.sia.tech/renterd/v2 v2.2.1
