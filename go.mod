@@ -6,16 +6,16 @@ toolchain go1.24.5
 
 require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7
-	github.com/ipfs/boxo v0.33.1
+	github.com/ipfs/boxo v0.34.0
 	github.com/ipfs/go-block-format v0.2.2
 	github.com/ipfs/go-cid v0.5.0
-	github.com/ipfs/go-datastore v0.8.2
+	github.com/ipfs/go-datastore v0.8.3
 	github.com/ipfs/go-ds-leveldb v0.5.2
 	github.com/ipfs/go-ipld-format v0.6.2
 	github.com/ipld/go-car/v2 v2.14.3
 	github.com/libp2p/go-libp2p v0.43.0
-	github.com/libp2p/go-libp2p-kad-dht v0.33.1
-	github.com/mattn/go-sqlite3 v1.14.31
+	github.com/libp2p/go-libp2p-kad-dht v0.34.0
+	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/multiformats/go-multiaddr v0.16.1
 	github.com/multiformats/go-multicodec v0.9.2
 	github.com/multiformats/go-multihash v0.2.3
@@ -27,6 +27,7 @@ require (
 )
 
 require (
+	github.com/Jorropo/jsync v1.0.1 // indirect
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
@@ -58,7 +59,7 @@ require (
 	github.com/ipfs/go-ipfs-pq v0.0.3 // indirect
 	github.com/ipfs/go-ipld-cbor v0.2.1 // indirect
 	github.com/ipfs/go-ipld-legacy v0.2.2 // indirect
-	github.com/ipfs/go-log/v2 v2.8.0 // indirect
+	github.com/ipfs/go-log/v2 v2.8.1 // indirect
 	github.com/ipfs/go-metrics-interface v0.3.0 // indirect
 	github.com/ipfs/go-peertaskqueue v0.8.2 // indirect
 	github.com/ipld/go-codec-dagpb v1.7.0 // indirect
@@ -151,7 +152,7 @@ require (
 	go.uber.org/mock v0.5.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.41.0 // indirect
-	golang.org/x/exp v0.0.0-20250811191247-51f88131bc50 // indirect
+	golang.org/x/exp v0.0.0-20250813145105-42675adae3e6 // indirect
 	golang.org/x/mod v0.27.0 // indirect
 	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
