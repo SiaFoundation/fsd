@@ -19,7 +19,7 @@ require (
 	github.com/multiformats/go-multihash v0.2.3
 	go.sia.tech/jape v0.14.1
 	go.sia.tech/renterd/v2 v2.7.1
-	go.uber.org/zap v1.27.0
+	go.uber.org/zap v1.27.1
 	gopkg.in/yaml.v3 v3.0.1
 	lukechampine.com/frand v1.5.1
 )
