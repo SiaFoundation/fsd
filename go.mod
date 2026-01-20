@@ -11,8 +11,8 @@ require (
 	github.com/ipfs/go-ds-leveldb v0.5.2
 	github.com/ipfs/go-ipld-format v0.6.3
 	github.com/ipld/go-car/v2 v2.16.0
-	github.com/libp2p/go-libp2p v0.45.0
-	github.com/libp2p/go-libp2p-kad-dht v0.36.0
+	github.com/libp2p/go-libp2p v0.46.0
+	github.com/libp2p/go-libp2p-kad-dht v0.37.0
 	github.com/mattn/go-sqlite3 v1.14.33
 	github.com/multiformats/go-multiaddr v0.16.1
 	github.com/multiformats/go-multicodec v0.10.0
@@ -36,7 +36,6 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/filecoin-project/go-clock v0.1.0 // indirect
 	github.com/flynn/noise v1.1.0 // indirect
-	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.11 // indirect
 	github.com/gammazero/chanqueue v1.1.1 // indirect
 	github.com/gammazero/deque v1.2.0 // indirect
@@ -64,7 +63,6 @@ require (
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
 	github.com/julienschmidt/httprouter v1.3.0 // indirect
-	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/klauspost/reedsolomon v1.12.5 // indirect
 	github.com/koron/go-ssdp v0.0.6 // indirect
@@ -123,8 +121,8 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.17.0 // indirect
-	github.com/quic-go/qpack v0.5.1 // indirect
-	github.com/quic-go/quic-go v0.55.0 // indirect
+	github.com/quic-go/qpack v0.6.0 // indirect
+	github.com/quic-go/quic-go v0.57.1 // indirect
 	github.com/quic-go/webtransport-go v0.9.0 // indirect
 	github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46 // indirect
 	github.com/shabbyrobe/gocovmerge v0.0.0-20230507112040-c3350d9342df // indirect
