@@ -135,9 +135,9 @@ require (
 	github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/otel v1.38.0 // indirect
-	go.opentelemetry.io/otel/metric v1.38.0 // indirect
-	go.opentelemetry.io/otel/trace v1.38.0 // indirect
+	go.opentelemetry.io/otel v1.41.0 // indirect
+	go.opentelemetry.io/otel/metric v1.41.0 // indirect
+	go.opentelemetry.io/otel/trace v1.41.0 // indirect
 	go.sia.tech/core v0.18.0 // indirect
 	go.sia.tech/coreutils v0.18.6 // indirect
 	go.sia.tech/gofakes3 v0.0.5 // indirect
