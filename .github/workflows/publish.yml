@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   publish:
-    uses: SiaFoundation/workflows/.github/workflows/go-publish.yml@22e56c0750c0febb09784caa01c60021e0b5f111 # master
+    uses: SiaFoundation/workflows/.github/workflows/go-publish.yml@e57046123c35f2c64a91ec3e14fe3c9d2b0236a0 # master
     secrets: inherit
     with:
       linux-build-args: -tags=timetzdata -trimpath -a -ldflags '-s -w -linkmode external -extldflags "-static"'
